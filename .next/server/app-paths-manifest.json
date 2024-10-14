@@ -1,0 +1,6 @@
+{
+  "/page": "app/page.js",
+  "/api/start_interview/route": "app/api/start_interview/route.js",
+  "/api/text_to_speech/route": "app/api/text_to_speech/route.js",
+  "/api/continue_interview/route": "app/api/continue_interview/route.js"
+}
