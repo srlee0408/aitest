@@ -3,7 +3,7 @@
 import axios from 'axios';
 
 // 환경 변수에서 API 키 가져오기
-const openaiApiKey = process.env.OPENAI_API_KEY;
+const openaiApiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
 
 // API 키 유효성 검사
 if (!openaiApiKey) {
