@@ -11,5 +11,4 @@ const nextConfig = {
     INTERVIEW_HISTORY_WEBHOOK_URL: process.env.INTERVIEW_HISTORY_WEBHOOK_URL,
   },
 }
-
 module.exports = nextConfig
