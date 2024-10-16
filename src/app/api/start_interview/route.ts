@@ -9,6 +9,7 @@ export async function POST(req: Request) {
 
     const thread = await openai.beta.threads.create()
     
+    console.log('Thread created:', env.OPENAI_API_KEY);
     console.log('Thread created:', thread);
     console.log('생성된 thread_id:', thread.id);
 

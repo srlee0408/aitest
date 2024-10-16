@@ -5,6 +5,12 @@ import axios from 'axios';
 // 환경 변수에서 API 키 가져오기
 const openaiApiKey = process.env.OPENAI_API_KEY;
 
+// API 키 유효성 검사
+if (!openaiApiKey) {
+  console.error('OpenAI API 키가 설정되지 않았습니다.');
+  throw new Error('환경 변수에서 OpenAI API 키를 가져오지 못했습니다.');
+}
+
 export async function startInterview(): Promise<{ message: string; threadId: string }> {
   try {
     const response = await axios.post('/api/start_interview', {}, {
