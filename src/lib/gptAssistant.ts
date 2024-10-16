@@ -12,22 +12,32 @@ if (!openaiApiKey) {
 }
 
 export async function startInterview(): Promise<{ message: string; threadId: string }> {
+  console.log('Starting interview...');
+  console.log('NEXT_PUBLIC_API_BASE_URL:', process.env.NEXT_PUBLIC_API_BASE_URL);
+
   try {
-    const response = await axios({
-      method: 'post',
-      url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/start_interview`,
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/start_interview`, {
+      method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
-      data: {} // 필요한 데이터가 있다면 여기에 추가
+      body: JSON.stringify({}) // 필요한 데이터가 있다면 여기에 추가
     });
-    console.log('Response:', response.data);
-    if (!response.data || !response.data.thread_id) {
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('Response:', data);
+
+    if (!data || !data.thread_id) {
       throw new Error('Invalid response from server');
     }
-    return { message: response.data.message, threadId: response.data.thread_id };
+
+    return { message: data.message, threadId: data.thread_id };
   } catch (error) {
-    console.error('Error starting interview:', error);
+    console.error('Error in startInterview:', error);
     throw error;
   }
 }
