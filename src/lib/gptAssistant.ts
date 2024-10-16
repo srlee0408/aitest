@@ -13,7 +13,7 @@ if (!openaiApiKey) {
 
 export async function startInterview(): Promise<{ message: string; threadId: string }> {
   try {
-    const response = await axios.post(`${process.env.NEXT_PUBLIC_OPENAI_API_KEY}/api/start_interview`, {}, {
+    const response = await axios.post(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/start_interview`, {}, {
       headers: {
         'Authorization': `Bearer ${openaiApiKey}`
       }
