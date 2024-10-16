@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     console.log('Thread created:', thread);
     console.log('생성된 thread_id:', thread.id);
 
-    const message = "면접을 시작하겠습니다. 준비가 되었다면 말씀해주세요."
+    const message = "테스트를 진행해보겠습니다. 빨간 점이 들어오면 네 라고 답변해주세요. "
 
     return NextResponse.json({ 
       thread_id: thread.id,
@@ -24,7 +24,14 @@ export async function POST(req: Request) {
   }
 }
 
-function generateIntervieweeId() {
-  // 여기에 interviewee_id를 생성하는 로직을 구현합니다
-  return 'interviewee_' + Math.random().toString(36).substr(2, 9)
+// OPTIONS 메서드 핸들러 추가
+export async function OPTIONS(req: Request) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  })
 }

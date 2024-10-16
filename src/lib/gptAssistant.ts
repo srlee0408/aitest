@@ -2,17 +2,21 @@
 
 import axios from 'axios';
 
-let threadId: string | null = null;
+// 환경 변수에서 API 키 가져오기
+const openaiApiKey = process.env.OPENAI_API_KEY;
 
 export async function startInterview(): Promise<{ message: string; threadId: string }> {
   try {
-    const response = await axios.post('/api/start_interview');
-    console.log('Start interview response:', response.data);  // 응답 로깅
+    const response = await axios.post('/api/start_interview', {}, {
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`
+      }
+    });
+    console.log('Start interview response:', response.data);
     if (!response.data || !response.data.thread_id) {
       throw new Error('Invalid response from server');
     }
-    threadId = response.data.thread_id;
-    return { message: response.data.message, threadId: threadId as string };
+    return { message: response.data.message, threadId: response.data.thread_id };
   } catch (error) {
     console.error('Error in startInterview:', error);
     if (axios.isAxiosError(error)) {
@@ -22,34 +26,52 @@ export async function startInterview(): Promise<{ message: string; threadId: str
   }
 }
 
-export async function continueInterview(userMessage: string): Promise<string> {
-  if (!threadId) {
-    throw new Error('Interview has not been started');
+export async function continueInterview(userMessage: string, threadId: string): Promise<string> {
+  console.log("continueInterview 함수 호출됨");
+  console.log("받은 userMessage:", userMessage);
+  console.log("받은 threadId:", threadId);
+
+  if (!threadId || typeof threadId !== 'string') {
+    console.error('잘못된 threadId:', threadId);
+    throw new Error('유효한 threadId가 제공되지 않았습니다');
   }
   try {
-    console.log('Sending request to continue_interview:', { threadId, userMessage });
+    console.log('continue_interview 요청 전송:', { threadId, userMessage });
     const response = await axios.post('/api/continue_interview', {
       thread_id: threadId,
       message: userMessage
     });
-    console.log('Response from continue_interview:', response.data);
+    console.log('continue_interview 응답:', response.data);
+    if (!response.data || !response.data.response) {
+      console.error('잘못된 응답 형식:', response.data);
+      throw new Error('서버에서 올바른 응답을 받지 못했습니다');
+    }
     return response.data.response;
   } catch (error) {
-    console.error('Error in continueInterview:', error);
+    console.error('continueInterview 오류:', error);
     if (axios.isAxiosError(error)) {
-      console.error('Axios error details:', error.response?.data);
+      console.error('Axios 오류 상세:', error.response?.data);
+      console.error('Axios 오류 상태:', error.response?.status);
+      console.error('Axios 오류 헤더:', error.response?.headers);
     }
-    throw new Error('Failed to continue interview');
+    throw new Error('인터뷰를 계속할 수 없습니다: ' + (error as Error).message);
   }
 }
 
-export async function endInterview(): Promise<string> {
+export async function endInterview(threadId: string): Promise<string> {
   if (!threadId) {
-    throw new Error('Interview has not been started');
+    throw new Error('유효한 threadId가 제공되지 않았습니다');
   }
-  const response = await axios.post('/api/end_interview', {
-    thread_id: threadId
-  });
-  threadId = null;
-  return response.data.message;
+  try {
+    const response = await axios.post('/api/end_interview', {
+      thread_id: threadId
+    });
+    return response.data.message;
+  } catch (error) {
+    console.error('Error in endInterview:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('Axios error details:', error.response?.data);
+    }
+    throw new Error('Failed to end interview');
+  }
 }

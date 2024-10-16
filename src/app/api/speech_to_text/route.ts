@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import OpenAI from 'openai'
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import { getEnvVariables } from '@/lib/env'
 
 export async function POST(req: Request) {
   try {
@@ -11,6 +10,9 @@ export async function POST(req: Request) {
     if (!audio) {
       return NextResponse.json({ error: 'No audio file provided' }, { status: 400 })
     }
+
+    const env = await getEnvVariables();
+    const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
 
     const transcription = await openai.audio.transcriptions.create({
       file: audio,
