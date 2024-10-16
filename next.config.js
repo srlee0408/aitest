@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
+  output: 'standalone',
   // 다른 설정들...
   env: {
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
