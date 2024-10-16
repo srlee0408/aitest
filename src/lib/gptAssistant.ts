@@ -13,22 +13,22 @@ if (!openaiApiKey) {
 
 export async function startInterview(): Promise<{ message: string; threadId: string }> {
   try {
-    const response = await axios.post(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/start_interview`, {}, {
+    const response = await axios({
+      method: 'post',
+      url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/start_interview`,
       headers: {
-        'Authorization': `Bearer ${openaiApiKey}`
-      }
+        'Content-Type': 'application/json'
+      },
+      data: {} // 필요한 데이터가 있다면 여기에 추가
     });
-    console.log('Start interview response:', response.data);
+    console.log('Response:', response.data);
     if (!response.data || !response.data.thread_id) {
       throw new Error('Invalid response from server');
     }
     return { message: response.data.message, threadId: response.data.thread_id };
   } catch (error) {
-    console.error('Error in startInterview:', error);
-    if (axios.isAxiosError(error)) {
-      console.error('Axios error details:', error.response?.data);
-    }
-    throw new Error('Failed to start interview');
+    console.error('Error starting interview:', error);
+    throw error;
   }
 }
 
@@ -60,7 +60,7 @@ export async function continueInterview(userMessage: string, threadId: string): 
       console.error('Axios 오류 상태:', error.response?.status);
       console.error('Axios 오류 헤더:', error.response?.headers);
     }
-    throw new Error('인터뷰를 계속할 수 없습니다: ' + (error as Error).message);
+    throw new Error('인터뷰를 계속할 수 습니다: ' + (error as Error).message);
   }
 }
 
