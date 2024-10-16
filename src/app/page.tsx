@@ -381,7 +381,7 @@
           <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">AI 면접 프로그램</h1>
           {interviewState === 'idle' && (
             <>
-              <p className="text-xl text-center mb-4 text-gray-600">저화번호를 입력해주세요</p>
+              <p className="text-xl text-center mb-4 text-gray-600">전화번호를 입력해주세요</p>
               <div className="bg-gray-100 rounded-2xl shadow-inner p-4 mb-6">
                 <input
                   type="text"
