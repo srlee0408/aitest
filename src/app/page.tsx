@@ -94,8 +94,7 @@
     const [showEndPopup, setShowEndPopup] = useState(false);
     const [interviewHistory, setInterviewHistory] = useState<string>('');
     const beepAudioRef = useRef<HTMLAudioElement | null>(null);
-    let silenceTimer: NodeJS.Timeout | null = null;
-    const SILENCE_THRESHOLD = 1500; // 1.5초
+    const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
     const [audioContextInitialized, setAudioContextInitialized] = useState(false);
     const [currentTranscript, setCurrentTranscript] = useState('');
     const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
@@ -178,20 +177,22 @@
           setIsUserSpeaking(true);
 
           // 음성 인식이 끝나고 1초 후에 웨이브 애니메이션을 멈춥니다.
-          clearTimeout(silenceTimer);
-          silenceTimer = setTimeout(() => {
+          if (silenceTimerRef.current) {
+            clearTimeout(silenceTimerRef.current);
+          }
+          silenceTimerRef.current = setTimeout(() => {
             setIsUserSpeaking(false);
           }, 1000);
 
           // 타이머 재설정
-          if (silenceTimer) clearTimeout(silenceTimer);
-          silenceTimer = setTimeout(() => {
+          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = setTimeout(() => {
             console.log('침묵 감지, 현재 텍스트 전송');
             if (currentTranscript.trim() !== '') {
               sendAudioToServer(currentTranscript);
               setCurrentTranscript(''); // 전송 후 현재 트랜스크립트 초기화
             }
-          }, SILENCE_THRESHOLD);
+          }, 1500);
 
           // 최종 결과 처리
           if (event.results[event.results.length - 1].isFinal) {
@@ -211,7 +212,7 @@
 
         recognitionRef.current.onend = () => {
           console.log('음성 인식이 종료되었습니다.');
-          if (silenceTimer) clearTimeout(silenceTimer);
+          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
         };
 
         recognitionRef.current.start();
@@ -404,6 +405,15 @@
       ['7', '8', '9'],
       ['*', '0', '#']
     ]
+
+    // 컴포넌트가 언마운트될 때 타이머를 정리합니다.
+    useEffect(() => {
+      return () => {
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+        }
+      };
+    }, []);
 
     return (
       <main className="min-h-screen flex items-center justify-center bg-gray-100">
