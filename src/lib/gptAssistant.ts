@@ -16,7 +16,7 @@ export async function startInterview(): Promise<{ message: string; threadId: str
   console.log('NEXT_PUBLIC_API_BASE_URL:', process.env.NEXT_PUBLIC_API_BASE_URL);
 
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/start_interview`, {
+    const response = await fetch(`/api/start_interview`, {
       method: 'POST', // POST 요청으로 변경
       headers: {
         'Content-Type': 'application/json',

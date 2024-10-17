@@ -227,35 +227,11 @@
         recognitionRef.current.onend = () => {
           console.log('음성 인식이 종료되었습니다.');
           if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-          
-          // 자동 재시작
-          if (restartTimeout) clearTimeout(restartTimeout);
-          restartTimeout = setTimeout(() => {
-            if (recognitionRef.current) {
-              console.log('음성 인식 재시작 중...');
-              recognitionRef.current.start();
-              console.log('음성 인식 재시작 완료');
-            }
-          }, 500); // 0.5초 후 재시작
         };
 
         recognitionRef.current.onstart = () => {
           console.log('음성 인식이 시작되었습니다.');
           setIsRecording(true);
-          
-          // 10초 후 사용자에게 계속할지 물어보기
-          setTimeout(() => {
-            if (confirm('음성 인식을 계속하시겠습니까?')) {
-              if (recognitionRef.current) {
-                recognitionRef.current.stop();
-                recognitionRef.current.start();
-                console.log('음성 인식 재시작 중...');
-              }
-            } else {
-              if (recognitionRef.current) recognitionRef.current.stop();
-              setIsRecording(false);
-            }
-          }, 10000);
         };
         recognitionRef.current.onspeechstart = () => {
           console.log('음성이 감지되었습니다.');
