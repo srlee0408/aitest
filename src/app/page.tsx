@@ -172,15 +172,14 @@
           // 서버로 음성 데이터를 전송하는 로직 추가
           return;
         }
-        console.log('SpeechRecognition 호출 완료',SpeechRecognition);
-        console.log('recognitionRef.current 호출 완료',recognitionRef.current);
-
         recognitionRef.current = new SpeechRecognition();
+        console.log('recognitionRef.current 호출 완료',recognitionRef.current.onresult);
         recognitionRef.current.lang = 'ko-KR';
         recognitionRef.current.continuous = true;
         recognitionRef.current.interimResults = true;
 
         recognitionRef.current.onresult = (event: SpeechRecognitionEvent) => {
+          console.log('recognitionRef.current.onresult 호출 완료',event.results);
           const currentTranscript = Array.from(event.results)
             .map(result => result[0].transcript)
             .join('');
@@ -223,13 +222,40 @@
           console.error('음성 인식 오류:', event.error);
         };
 
+        let restartTimeout: NodeJS.Timeout | null = null;
+
         recognitionRef.current.onend = () => {
           console.log('음성 인식이 종료되었습니다.');
           if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+          
+          // 자동 재시작
+          if (restartTimeout) clearTimeout(restartTimeout);
+          restartTimeout = setTimeout(() => {
+            if (recognitionRef.current) {
+              console.log('음성 인식 재시작 중...');
+              recognitionRef.current.start();
+              console.log('음성 인식 재시작 완료');
+            }
+          }, 500); // 0.5초 후 재시작
         };
+
         recognitionRef.current.onstart = () => {
           console.log('음성 인식이 시작되었습니다.');
           setIsRecording(true);
+          
+          // 10초 후 사용자에게 계속할지 물어보기
+          setTimeout(() => {
+            if (confirm('음성 인식을 계속하시겠습니까?')) {
+              if (recognitionRef.current) {
+                recognitionRef.current.stop();
+                recognitionRef.current.start();
+                console.log('음성 인식 재시작 중...');
+              }
+            } else {
+              if (recognitionRef.current) recognitionRef.current.stop();
+              setIsRecording(false);
+            }
+          }, 10000);
         };
         recognitionRef.current.onspeechstart = () => {
           console.log('음성이 감지되었습니다.');
@@ -354,7 +380,7 @@
           }
         } catch (error) {
           console.error('Error checking phone number:', error);
-          setErrorMessage('전화번호 확인 중 오류가 발생했습니다. 다시 시도해 주���요.');
+          setErrorMessage('전화번호 확인 중 오류가 발생했습니다. 다시 시도해 주요요.');
         }
       } else {
         setErrorMessage('올바른 11자리 번호를 입력해주세요.');
