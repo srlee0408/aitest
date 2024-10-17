@@ -29,7 +29,7 @@
     results: SpeechRecognitionResultList;
   }
 
-  // SpeechRecognitionResultList 인터페이스 수정
+  // SpeechRecognitionResultList 인���페이스 수정
   interface SpeechRecognitionResultList {
     readonly length: number;
     [index: number]: SpeechRecognitionResult;
@@ -126,6 +126,14 @@
     }, []);
 
     useEffect(() => {
+      const checkSpeechRecognitionSupport = () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+          setErrorMessage('이 브라우저는 음성 인식을 지원하지 않습니다. 다른 브라우저를 사용해 주세요.');
+        }
+      };
+
+      checkSpeechRecognitionSupport();
       requestMicrophonePermission();
     }, [requestMicrophonePermission]);
 
@@ -309,7 +317,7 @@
                 setInterviewState('idle');
               }
             } else {
-              setErrorMessage('마이크 권한이 필요합니다. 브라우저 설정에서 권한을 허용한 후 다시 시도해주세요.');
+              setErrorMessage('마이크 권한이 필요합니다. 브라우저 설정에서 권한을 허용한 후 다시 시도해���세요.');
             }
           } else {
             setErrorMessage('등록되지 않은 전화번호입니다.');
@@ -390,7 +398,7 @@
     return (
       <main className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="max-w-md w-full bg-white rounded-3xl shadow-xl overflow-hidden p-8">
-          <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">AI 면접 프로그램</h1>
+          <h1 className="text-3xl font-bold text-center mb-2 text-gray-800">AI 면접 프로그램</h1>
           {interviewState === 'idle' && (
             <>
               <p className="text-xl text-center mb-2 text-gray-600">전화번호를 입력해주세요.</p>
