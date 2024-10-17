@@ -83,13 +83,8 @@
     const [interviewState, setInterviewState] = useState('idle')
     const [interviewMessage, setInterviewMessage] = useState('')
     const [isRecording, setIsRecording] = useState<boolean>(false)
-    const [transcript, setTranscript] = useState('')
     const [isGPTSpeaking, setIsGPTSpeaking] = useState(false)
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
-    const [intervieweeId, setIntervieweeId] = useState<number | null>(null)
-    const [questionNumber, setQuestionNumber] = useState(0)
-    const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-    const audioChunksRef = useRef<Blob[]>([])
     const [hasMicPermission, setHasMicPermission] = useState<boolean | null>(null); // null은 아직 확인되지 않은 상태를 의미
     const recognitionRef = useRef<SpeechRecognition | null>(null);
     const [showEndPopup, setShowEndPopup] = useState(false);
@@ -100,6 +95,7 @@
     const [currentTranscript, setCurrentTranscript] = useState<string>('');
     const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
     const [isUserSpeaking, setIsUserSpeaking] = useState(false);
+    const [isListening, setIsListening] = useState<boolean>(false);
 
     useEffect(() => {
       threadIdRef.current = threadId;
@@ -216,6 +212,9 @@
 
         recognitionRef.current.onerror = (event: SpeechRecognitionErrorEvent) => {
           console.error('음성 인식 오류:', event.error);
+          setIsRecording(false);
+          setIsListening(false);  // 추가된 부분
+          setErrorMessage('음성 인식 중 오류가 발생했습니다.');
         };
 
         let restartTimeout: NodeJS.Timeout | null = null;
@@ -223,11 +222,14 @@
         recognitionRef.current.onend = () => {
           console.log('음성 인식이 종료되었습니다.');
           if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+          setIsRecording(false);
+          setIsListening(false);  // 추가된 부분
         };
 
         recognitionRef.current.onstart = () => {
           console.log('음성 인식이 시작되었습니다.');
           setIsRecording(true);
+          setIsListening(true);  // 추가된 부분
         };
         recognitionRef.current.onspeechstart = () => {
           console.log('음성이 감지되었습니다.');
@@ -237,6 +239,8 @@
       } catch (error) {
         console.error('Error starting recording:', error);
         setErrorMessage('녹음을 시작하는 중 오류가 발생했습니다.');
+        setIsRecording(false);
+        setIsListening(false);  // 추가된 부분
       }
     }, [hasMicPermission, requestMicrophonePermission, setErrorMessage, setInterviewState, initializeAudioContext]);
 
@@ -244,6 +248,7 @@
       if (recognitionRef.current) {
         recognitionRef.current.stop();
         setIsRecording(false);
+        setIsListening(false);  // 추가된 부분
         console.log('Recording stopped');
       } else {
         console.log('SpeechRecognition is not active');
@@ -550,6 +555,11 @@
                   확인
                 </button>
               </div>
+            </div>
+          )}
+          {isListening && (
+            <div className="listening-indicator">
+              음성을 듣고 있습니다...
             </div>
           )}
         </div>
