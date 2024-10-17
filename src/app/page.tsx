@@ -89,7 +89,7 @@
     const [questionNumber, setQuestionNumber] = useState(0)
     const mediaRecorderRef = useRef<MediaRecorder | null>(null)
     const audioChunksRef = useRef<Blob[]>([])
-    const [hasMicPermission, setHasMicPermission] = useState<boolean | null>(null);
+    const [hasMicPermission, setHasMicPermission] = useState<boolean | null>(null); // null은 아직 확인되지 않은 상태를 의미
     const recognitionRef = useRef<SpeechRecognition | null>(null);
     const [showEndPopup, setShowEndPopup] = useState(false);
     const [interviewHistory, setInterviewHistory] = useState<string>('');
@@ -113,74 +113,49 @@
       }
     }, [audioContextInitialized]);
 
-    const checkMicrophonePermission = useCallback(async () => {
-      try {
-        const result = await navigator.permissions.query({ name: 'microphone' as PermissionName });
-        if (result.state === 'granted') {
-          setHasMicPermission(true);
-          return true;
-        } else if (result.state === 'prompt') {
-          // 권한 요청이 필요한 상태
-          return null;
-        } else {
-          setHasMicPermission(false);
-          return false;
-        }
-      } catch (error) {
-        console.error('마이크 권한 확인 실패:', error);
-        return null;
-      }
-    }, []);
-
     const requestMicrophonePermission = useCallback(async () => {
-      const permissionStatus = await checkMicrophonePermission();
-      if (permissionStatus === true) return true; // 이미 권한이 있는 경우
-      if (permissionStatus === false) return false; // 권한이 명시적으로 거부된 경우
-
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         setHasMicPermission(true);
         setAudioStream(stream);
-        return true;
+        return stream;
       } catch (error) {
         console.error('마이크 권한 요청 실패:', error);
+        setErrorMessage('마이크 사용 권한이 필요합니다. 브라우저 설정에서 권한을 허용해주세요.');
         setHasMicPermission(false);
-        return false;
+        return null;
       }
-    }, [checkMicrophonePermission]);
+    }, []);
 
     useEffect(() => {
-      const checkPermission = async () => {
-        const result = await checkMicrophonePermission();
-        if (result === null) {
-          // 권한 상태가 'prompt'인 경우, 사용자 상호작용 시 권한을 요청합니다.
-          const button = document.createElement('button');
-          button.textContent = '마이크 권한 요청';
-          button.onclick = async () => {
-            await requestMicrophonePermission();
-            button.remove();
-          };
-          document.body.appendChild(button);
+      const checkSpeechRecognitionSupport = () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+          setErrorMessage('이 브라우저는 음성 인식을 지원하지 않습니다. 다른 브라우저를 사용해 주세요.');
         }
       };
-      checkPermission();
-    }, [checkMicrophonePermission, requestMicrophonePermission]);
+
+      checkSpeechRecognitionSupport();
+      requestMicrophonePermission();
+    }, [requestMicrophonePermission]);
 
     const startRecording = useCallback(async () => {
-      if (!hasMicPermission) {
-        const granted = await requestMicrophonePermission();
-        if (!granted) {
-          setErrorMessage('마이크 권한이 필요합니다. 브라우저 설정에서 권한을 허용해주세요.');
-          return;
-        }
-      }
-
       console.log('녹음 시작 중...');
       if (!threadIdRef.current) {
         console.error('threadId가 설정되지 않았습니다.');
         setErrorMessage('면접 세션이 올바르게 시작되지 않았습니다. 다시 시도해 주세요.');
         setInterviewState('idle');
         return;
+      }
+
+      if (!hasMicPermission) {
+        console.log('마이크 권한 요청 중...');
+        const stream = await requestMicrophonePermission();
+        if (!stream) {
+          console.log('마이크 권한 획득 실패');
+          return;
+        }
+        console.log('마이크 권한 획득 성공');
       }
 
       initializeAudioContext();
