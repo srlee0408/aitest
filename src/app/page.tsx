@@ -82,7 +82,7 @@
     const [number, setNumber] = useState('')
     const [interviewState, setInterviewState] = useState('idle')
     const [interviewMessage, setInterviewMessage] = useState('')
-    const [isRecording, setIsRecording] = useState(false)
+    const [isRecording, setIsRecording] = useState<boolean>(false)
     const [transcript, setTranscript] = useState('')
     const [isGPTSpeaking, setIsGPTSpeaking] = useState(false)
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -97,7 +97,7 @@
     const beepAudioRef = useRef<HTMLAudioElement | null>(null);
     const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
     const [audioContextInitialized, setAudioContextInitialized] = useState(false);
-    const [currentTranscript, setCurrentTranscript] = useState('');
+    const [currentTranscript, setCurrentTranscript] = useState<string>('');
     const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
     const [isUserSpeaking, setIsUserSpeaking] = useState(false);
 
