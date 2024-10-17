@@ -179,13 +179,9 @@
         recognitionRef.current.interimResults = true;
 
         recognitionRef.current.onresult = (event: SpeechRecognitionEvent) => {
-          console.log('recognitionRef.current.onresult 호출 완료',event.results);
-          const currentTranscript = Array.from(event.results)
-            .map(result => result[0].transcript)
-            .join('');
-          
-          console.log('실시간 음성 인식 결과', currentTranscript);
-          setCurrentTranscript(currentTranscript);
+          console.log('recognitionRef.current.onresult 호출 완료', event.results);
+          const transcript = event.results[0][0].transcript;
+          setCurrentTranscript(transcript);
           setIsUserSpeaking(true);
 
           // 음성 인식이 끝나고 0.5초 후에 웨이브 애니메이션을 멈춥니다.
@@ -200,17 +196,17 @@
           if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
           silenceTimerRef.current = setTimeout(() => {
             console.log('침묵 감지, 현재 텍스트 전송');
-            if (currentTranscript.trim() !== '') {
-              sendAudioToServer(currentTranscript);
+            if (transcript.trim() !== '') {
+              sendAudioToServer(transcript);
               setCurrentTranscript(''); // 전송 후 현재 트랜스크립트 초기화
             }
           }, 1500);
 
           // 최종 결과 처리
-          if (event.results[event.results.length - 1].isFinal) {
+          if (event.results[0].isFinal) {
             console.log('발화 종료 감지, GPT에 전송 준비');
-            if (currentTranscript.trim() !== '') {
-              sendAudioToServer(currentTranscript);
+            if (transcript.trim() !== '') {
+              sendAudioToServer(transcript);
               setCurrentTranscript(''); // 전송 후 현재 트랜스크립트 초기화
             } else {
               console.log('인식된 텍스트가 비어있어 GPT에 전송하지 않습니다.');
