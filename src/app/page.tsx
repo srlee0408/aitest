@@ -29,7 +29,7 @@
     results: SpeechRecognitionResultList;
   }
 
-  // SpeechRecognitionResultList 인���페이스 수정
+  // SpeechRecognitionResultList 인페이스 수정
   interface SpeechRecognitionResultList {
     readonly length: number;
     [index: number]: SpeechRecognitionResult;
@@ -89,7 +89,7 @@
     const [questionNumber, setQuestionNumber] = useState(0)
     const mediaRecorderRef = useRef<MediaRecorder | null>(null)
     const audioChunksRef = useRef<Blob[]>([])
-    const [hasMicPermission, setHasMicPermission] = useState(false);
+    const [hasMicPermission, setHasMicPermission] = useState<boolean | null>(null); // null은 아직 확인되지 않은 상태를 의미
     const recognitionRef = useRef<SpeechRecognition | null>(null);
     const [showEndPopup, setShowEndPopup] = useState(false);
     const [interviewHistory, setInterviewHistory] = useState<string>('');
@@ -98,6 +98,7 @@
     const SILENCE_THRESHOLD = 1500; // 1.5초
     const [audioContextInitialized, setAudioContextInitialized] = useState(false);
     const [currentTranscript, setCurrentTranscript] = useState('');
+    const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
 
     useEffect(() => {
       threadIdRef.current = threadId;
@@ -116,6 +117,7 @@
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         setHasMicPermission(true);
+        setAudioStream(stream);
         return stream;
       } catch (error) {
         console.error('마이크 권한 요청 실패:', error);
@@ -317,7 +319,7 @@
                 setInterviewState('idle');
               }
             } else {
-              setErrorMessage('마이크 권한이 필요합니다. 브라우저 설정에서 권한을 허용한 후 다시 시도해���세요.');
+              setErrorMessage('마이크 권한이 필요합니다. 브라우저 설정에서 권한을 허용한 후 다시 시도해세요.');
             }
           } else {
             setErrorMessage('등록되지 않은 전화번호입니다.');
@@ -398,7 +400,12 @@
     return (
       <main className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="max-w-md w-full bg-white rounded-3xl shadow-xl overflow-hidden p-8">
-          <h1 className="text-3xl font-bold text-center mb-2 text-gray-800">AI 면접 프로그램</h1>
+          <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">AI 면접 프로그램</h1>
+          
+          {hasMicPermission === false && (
+            <p className="text-yellow-500 text-center mt-4 mb-4">마이크 사용 권한이 필요합니다. 브라우저 설정에서 권한을 허용해주세요.</p>
+          )}
+
           {interviewState === 'idle' && (
             <>
               <p className="text-xl text-center mb-2 text-gray-600">전화번호를 입력해주세요.</p>
@@ -468,10 +475,7 @@
           {interviewState === 'ended' && (
             <p className="text-xl text-center mb-4 text-gray-600">{interviewMessage}</p>
           )}
-          {!hasMicPermission && (
-            <p className="text-yellow-500 text-center mt-4">마이크 권한이 필요합니다. 브라우저 설정에서 권한을 허용해주세요.</p>
-          )}
-          {errorMessage && (
+          {errorMessage && errorMessage !== '마이크 사용 권한이 필요합니다. 브라우저 설정에서 권한을 허용해주세요.' && (
             <p className="text-red-500 text-center mt-4">{errorMessage}</p>
           )}
           {showEndPopup && (
