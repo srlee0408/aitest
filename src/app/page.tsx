@@ -96,7 +96,6 @@
     const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
     const [isUserSpeaking, setIsUserSpeaking] = useState(false);
     const [isListening, setIsListening] = useState<boolean>(false);
-    const [text, setText] = useState<string>('');
 
     useEffect(() => {
       threadIdRef.current = threadId;
@@ -439,45 +438,25 @@
       };
     }, []);
 
-    const handleListen = useCallback(() => {
-      if (!('webkitSpeechRecognition' in window)) {
-        setErrorMessage('이 브라우저는 음성 인식을 지원하지 않습니다.');
-        return;
-      }
-
-      const recognition = new (window as any).webkitSpeechRecognition();
-      recognition.lang = 'ko-KR';
-      recognition.continuous = false;
-      recognition.interimResults = false;
-
-      recognition.onstart = () => {
-        setIsRecording(true);
-      };
-
-      recognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        setText(transcript);
-        setNumber(transcript.replace(/[^0-9]/g, '').slice(0, 11));
-      };
-
-      recognition.onend = () => {
-        setIsRecording(false);
-      };
-
-      recognition.onerror = (event: any) => {
-        console.error(event.error);
-        setIsRecording(false);
-        setErrorMessage('음성 인식 중 오류가 발생했습니다.');
-      };
-
-      recognition.start();
-    }, []);
-
     return (
       <main className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="max-w-md w-full bg-white rounded-3xl shadow-xl overflow-hidden p-8">
+          <div className="relative mb-2">
+            {hasMicPermission && (
+              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full">
+                <div className="flex items-center justify-center bg-green-500 text-white text-xs px-2 py-1 rounded-full">
+                  <div className="w-2 h-2 bg-white rounded-full mr-1"></div>
+                  마이크 연결됨
+                </div>
+              </div>
+            )}
+          </div>
           <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">AI 면접 프로그램</h1>
           
+          {hasMicPermission === false && (
+            <p className="text-yellow-500 text-center mt-4 mb-4">마이크 사용 권한이 필요합니다. 브라우저 설정에서 권한을 허용해주세요.</p>
+          )}
+
           {interviewState === 'idle' && (
             <>
               <p className="text-xl text-center mb-2 text-gray-600">전화번호를 입력해주세요.</p>
@@ -512,7 +491,7 @@
                   지우기
                 </Button>
               </div>
-              <div className="flex justify-center mb-4">
+              <div className="flex justify-center">
                 <Button
                   onClick={handleConfirm}
                   className="w-full py-4 rounded-xl text-2xl font-bold bg-green-500 hover:bg-green-600 focus:ring-2 focus:ring-green-400 focus:outline-none text-white shadow-lg"
@@ -520,22 +499,6 @@
                   확인
                 </Button>
               </div>
-              <div className="flex justify-center">
-                <Button
-                  onClick={handleListen}
-                  disabled={isRecording}
-                  className={`w-full py-4 rounded-xl text-2xl font-bold ${
-                    isRecording ? 'bg-red-500' : 'bg-blue-500 hover:bg-blue-600'
-                  } focus:ring-2 focus:ring-blue-400 focus:outline-none text-white shadow-lg`}
-                >
-                  {isRecording ? '듣는 중...' : '음성으로 번호 입력'}
-                </Button>
-              </div>
-              {text && (
-                <div className="mt-4 text-center text-gray-600">
-                  인식된 텍스트: {text}
-                </div>
-              )}
             </>
           )}
           {interviewState === 'interviewing' && (
