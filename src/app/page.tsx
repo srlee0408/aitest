@@ -96,16 +96,24 @@
     const beepAudioRef = useRef<HTMLAudioElement | null>(null);
     let silenceTimer: NodeJS.Timeout | null = null;
     const SILENCE_THRESHOLD = 1500; // 1.5초
+    const [audioContextInitialized, setAudioContextInitialized] = useState(false);
 
     useEffect(() => {
       threadIdRef.current = threadId;
       console.log('threadId가 변경됨:', threadIdRef.current);
     }, [threadId]);
 
+    const initializeAudioContext = useCallback(() => {
+      if (!audioContextInitialized) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        new AudioContext();
+        setAudioContextInitialized(true);
+      }
+    }, [audioContextInitialized]);
+
     const requestMicrophonePermission = useCallback(async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        // 스트림을 즉시 중지하지 않고 유지합니다.
         setHasMicPermission(true);
         return stream;
       } catch (error) {
@@ -115,17 +123,13 @@
         return null;
       }
     }, []);
-  
 
     useEffect(() => {
-      // 컴포트 마운트 시 마이크 한 요청
       requestMicrophonePermission();
     }, [requestMicrophonePermission]);
 
     const startRecording = useCallback(async () => {
       console.log('녹음 시작 중...');
-      console.log('startRecording 함수 호출 시 threadId:', threadIdRef.current);
-      
       if (!threadIdRef.current) {
         console.error('threadId가 설정되지 않았습니다.');
         setErrorMessage('면접 세션이 올바르게 시작되지 않았습니다. 다시 시도해 주세요.');
@@ -143,7 +147,9 @@
         console.log('마이크 권한 획득 성공');
       }
 
-      try {      
+      initializeAudioContext();
+
+      try {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         recognitionRef.current = new SpeechRecognition();
         recognitionRef.current.lang = 'ko-KR';
@@ -194,7 +200,7 @@
         console.error('Error starting recording:', error);
         setErrorMessage('녹음을 시작하는 중 오류가 발생했습니다.');
       }
-    }, [hasMicPermission, requestMicrophonePermission, setErrorMessage, setInterviewState]);
+    }, [hasMicPermission, requestMicrophonePermission, setErrorMessage, setInterviewState, initializeAudioContext]);
 
     const stopRecording = useCallback(() => {
       if (recognitionRef.current) {
@@ -287,11 +293,12 @@
               try {
                 const { threadId: newThreadId, message } = await startInterview();
                 setThreadId(newThreadId);
-                threadIdRef.current = newThreadId;  // 여기서 ref도 업데이트
+                threadIdRef.current = newThreadId;
                 setInterviewMessage(message);
                 await speakText(message);
-                console.log('AI 음성 출력 후 녹음 시작...');
-                setTimeout(startRecording, 1000);
+                console.log('AI 음성 출력 완료. 사용자 응답 대기 중...');
+                // 자동으로 녹음 시작
+                startRecording();
               } catch (error) {
                 console.error('Error starting interview:', error);
                 setErrorMessage('면접을 시작하는 중 오류가 발생했습니다. 다시 시도해 주세요.');
@@ -341,6 +348,7 @@
 
     const speakText = async (text: string) => {
       try {
+        initializeAudioContext();
         const response = await axios.post('/api/text_to_speech', { text }, { responseType: 'arraybuffer' })
         const audioContext = new (window.AudioContext || window.webkitAudioContext)()
         const audioBuffer = await audioContext.decodeAudioData(response.data)
@@ -443,7 +451,7 @@
             <p className="text-xl text-center mb-4 text-gray-600">{interviewMessage}</p>
           )}
           {!hasMicPermission && (
-            <p className="text-yellow-500 text-center mt-4">마이크 권한이 필요니다. 브라우저 설정에서 권한을 허용해주세요.</p>
+            <p className="text-yellow-500 text-center mt-4">마이크 권한이 필요합니다. 브라우저 설정에서 권한을 허용해주세요.</p>
           )}
           {errorMessage && (
             <p className="text-red-500 text-center mt-4">{errorMessage}</p>
