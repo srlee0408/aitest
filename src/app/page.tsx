@@ -19,6 +19,7 @@
     lang: string;
     onresult: (event: SpeechRecognitionEvent) => void;
     onerror: (event: SpeechRecognitionErrorEvent) => void;
+    onspeechstart: () => void;
     onstart: () => void;
     onend: () => void;
     // 필요에 따라 더 많은 속성과 메서드를 추가할 수 있습니다.
@@ -147,6 +148,7 @@
         setInterviewState('idle');
         return;
       }
+      console.log('startRecording threadIdRef.current',threadIdRef.current);
 
       if (!hasMicPermission) {
         console.log('마이크 권한 요청 중...');
@@ -157,11 +159,22 @@
         }
         console.log('마이크 권한 획득 성공');
       }
+      console.log('startRecording hasMicPermission',hasMicPermission);
 
+      console.log('initializeAudioContext 호출 시작');
       initializeAudioContext();
-
+      console.log('initializeAudioContext 호출 완료');
       try {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+          // 서버 측 음성 인식 API 사용
+          console.log('서버 측 음성 인식 사용');
+          // 서버로 음성 데이터를 전송하는 로직 추가
+          return;
+        }
+        console.log('SpeechRecognition 호출 완료',SpeechRecognition);
+        console.log('recognitionRef.current 호출 완료',recognitionRef.current);
+
         recognitionRef.current = new SpeechRecognition();
         recognitionRef.current.lang = 'ko-KR';
         recognitionRef.current.continuous = true;
@@ -172,17 +185,17 @@
             .map(result => result[0].transcript)
             .join('');
           
-          console.log('실시간 음성 인식 결과 & threadid', currentTranscript, threadIdRef.current);
+          console.log('실시간 음성 인식 결과', currentTranscript);
           setCurrentTranscript(currentTranscript);
           setIsUserSpeaking(true);
 
-          // 음성 인식이 끝나고 1초 후에 웨이브 애니메이션을 멈춥니다.
+          // 음성 인식이 끝나고 0.5초 후에 웨이브 애니메이션을 멈춥니다.
           if (silenceTimerRef.current) {
             clearTimeout(silenceTimerRef.current);
           }
           silenceTimerRef.current = setTimeout(() => {
             setIsUserSpeaking(false);
-          }, 1000);
+          }, 500);
 
           // 타이머 재설정
           if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
@@ -214,10 +227,15 @@
           console.log('음성 인식이 종료되었습니다.');
           if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
         };
-
+        recognitionRef.current.onstart = () => {
+          console.log('음성 인식이 시작되었습니다.');
+          setIsRecording(true);
+        };
+        recognitionRef.current.onspeechstart = () => {
+          console.log('음성이 감지되었습니다.');
+        };
         recognitionRef.current.start();
-        console.log('음성 인식이 시작되었습니다.');
-        setIsRecording(true);
+        console.log('음성 인식 시작을 요청했습니다.');
       } catch (error) {
         console.error('Error starting recording:', error);
         setErrorMessage('녹음을 시작하는 중 오류가 발생했습니다.');
@@ -266,13 +284,13 @@
         } else {
           setIsGPTSpeaking(false);
           console.log('Starting recording after AI response...');
-          setTimeout(startRecording, 1000); // AI 응답 재생 후 1초 뒤에 녹음 시작
+          setTimeout(startRecording, 200); // AI 응답 재생 후 0.2초 뒤에 녹음 시작
         }
       } catch (error) {
         console.error('Error in handleContinueInterview:', error);
         setInterviewMessage("죄송합니다. 기술적인 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.");
         setIsGPTSpeaking(false);
-        setTimeout(startRecording, 1000); // 오류 발생 시에도 1초 후 녹음 시작
+        setTimeout(startRecording, 200); // 오류 발생 시에도 0.2초 후 녹음 시작
       }
     }, [setIsGPTSpeaking, stopRecording, setInterviewHistory, setInterviewMessage, setInterviewState, setShowEndPopup, startRecording, textToSpeech, playAudio, checkInterviewEnd, continueInterview]);
 
@@ -305,7 +323,7 @@
       }
     }, [setErrorMessage, setInterviewState, handleContinueInterview, threadIdRef]);
 
-    const handleConfirm = async () => {
+    const handleConfirm = async () => { //시작 부분
       if (number.length === 11) {
         try {
           const isValidNumber = await checkPhoneNumberWithWebhook(number);
@@ -322,6 +340,7 @@
                 console.log('AI 음성 출력 완료. 사용자 응답 대기 중...');
                 // 자동으로 녹음 시작
                 startRecording();
+                console.log('startRecording 호출 완료');
               } catch (error) {
                 console.error('Error starting interview:', error);
                 setErrorMessage('면접을 시작하는 중 오류가 발생했습니다. 다시 시도해 주세요.');
@@ -335,7 +354,7 @@
           }
         } catch (error) {
           console.error('Error checking phone number:', error);
-          setErrorMessage('전화번호 확인 중 오류가 발생했습니다. 다시 시도해 주세요.');
+          setErrorMessage('전화번호 확인 중 오류가 발생했습니다. 다시 시도해 주���요.');
         }
       } else {
         setErrorMessage('올바른 11자리 번호를 입력해주세요.');
@@ -379,6 +398,7 @@
         source.buffer = audioBuffer
         source.connect(audioContext.destination)
         source.start(0)
+        console.log('speakText', response.data)
         return new Promise<void>((resolve) => {
           source.onended = () => {
             resolve()
