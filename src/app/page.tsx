@@ -99,6 +99,7 @@
     const [audioContextInitialized, setAudioContextInitialized] = useState(false);
     const [currentTranscript, setCurrentTranscript] = useState('');
     const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
+    const [isUserSpeaking, setIsUserSpeaking] = useState(false);
 
     useEffect(() => {
       threadIdRef.current = threadId;
@@ -174,6 +175,13 @@
           
           console.log('실시간 음성 인식 결과 & threadid', currentTranscript, threadIdRef.current);
           setCurrentTranscript(currentTranscript);
+          setIsUserSpeaking(true);
+
+          // 음성 인식이 끝나고 1초 후에 웨이브 애니메이션을 멈춥니다.
+          clearTimeout(silenceTimer);
+          silenceTimer = setTimeout(() => {
+            setIsUserSpeaking(false);
+          }, 1000);
 
           // 타이머 재설정
           if (silenceTimer) clearTimeout(silenceTimer);
@@ -400,6 +408,16 @@
     return (
       <main className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="max-w-md w-full bg-white rounded-3xl shadow-xl overflow-hidden p-8">
+          <div className="relative mb-2">
+            {hasMicPermission && (
+              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full">
+                <div className="flex items-center justify-center bg-green-500 text-white text-xs px-2 py-1 rounded-full">
+                  <div className="w-2 h-2 bg-white rounded-full mr-1"></div>
+                  마이크 연결됨
+                </div>
+              </div>
+            )}
+          </div>
           <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">AI 면접 프로그램</h1>
           
           {hasMicPermission === false && (
@@ -468,6 +486,20 @@
                   <div className="w-full bg-gray-100 rounded-lg p-3 mt-2">
                     <p className="text-gray-600">{currentTranscript}</p>
                   </div>
+                  {isUserSpeaking && (
+                    <div className="flex justify-center items-center mt-2">
+                      {[...Array(5)].map((_, index) => (
+                        <div
+                          key={index}
+                          className={`bg-green-500 w-1 mx-1 rounded-full animate-wave`}
+                          style={{
+                            height: `${Math.random() * 20 + 10}px`,
+                            animationDelay: `${index * 0.1}s`
+                          }}
+                        ></div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </>
