@@ -97,6 +97,7 @@
     let silenceTimer: NodeJS.Timeout | null = null;
     const SILENCE_THRESHOLD = 1500; // 1.5초
     const [audioContextInitialized, setAudioContextInitialized] = useState(false);
+    const [currentTranscript, setCurrentTranscript] = useState('');
 
     useEffect(() => {
       threadIdRef.current = threadId;
@@ -161,8 +162,8 @@
             .map(result => result[0].transcript)
             .join('');
           
-          console.log('실시간 음성 인식 결과 & threadid', currentTranscript,threadIdRef.current);
-          setTranscript(currentTranscript);
+          console.log('실시간 음성 인식 결과 & threadid', currentTranscript, threadIdRef.current);
+          setCurrentTranscript(currentTranscript);
 
           // 타이머 재설정
           if (silenceTimer) clearTimeout(silenceTimer);
@@ -170,6 +171,7 @@
             console.log('침묵 감지, 현재 텍스트 전송');
             if (currentTranscript.trim() !== '') {
               sendAudioToServer(currentTranscript);
+              setCurrentTranscript(''); // 전송 후 현재 트랜스크립트 초기화
             }
           }, SILENCE_THRESHOLD);
 
@@ -178,6 +180,7 @@
             console.log('발화 종료 감지, GPT에 전송 준비');
             if (currentTranscript.trim() !== '') {
               sendAudioToServer(currentTranscript);
+              setCurrentTranscript(''); // 전송 후 현재 트랜스크립트 초기화
             } else {
               console.log('인식된 텍스트가 비어있어 GPT에 전송하지 않습니다.');
             }
@@ -440,9 +443,14 @@
                 </div>
               )}
               {isRecording && !isGPTSpeaking && (
-                <div className="flex justify-center items-center mb-4">
-                  <div className="animate-pulse bg-red-500 rounded-full h-4 w-4 mr-2"></div>
-                  <p className="text-red-500 font-semibold">지금 대답해주세요...</p>
+                <div className="flex flex-col items-center mb-4">
+                  <div className="flex items-center mb-2">
+                    <div className="animate-pulse bg-red-500 rounded-full h-4 w-4 mr-2"></div>
+                    <p className="text-red-500 font-semibold">지금 대답해주세요...</p>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-lg p-3 mt-2">
+                    <p className="text-gray-800">{currentTranscript}</p>
+                  </div>
                 </div>
               )}
             </>
