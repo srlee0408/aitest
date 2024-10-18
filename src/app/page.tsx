@@ -96,11 +96,20 @@
     const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
     const [isUserSpeaking, setIsUserSpeaking] = useState(false);
     const [isListening, setIsListening] = useState<boolean>(false);
+    const [isMobile, setIsMobile] = useState(false);
 
     useEffect(() => {
       threadIdRef.current = threadId;
       console.log('threadId가 변경됨:', threadIdRef.current);
     }, [threadId]);
+
+    useEffect(() => {
+      const checkMobile = () => {
+        const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+        return /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
+      };
+      setIsMobile(checkMobile());
+    }, []);
 
     const initializeAudioContext = useCallback(() => {
       if (!audioContextInitialized) {
@@ -135,6 +144,47 @@
       checkSpeechRecognitionSupport();
       requestMicrophonePermission();
     }, [requestMicrophonePermission]);
+
+    const initializeSpeechRecognition = useCallback(() => {
+      const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        console.error('SpeechRecognition is not supported in this browser');
+        setErrorMessage('이 브라우저는 음성 인식을 지원하지 않습니다.');
+        return;
+      }
+
+      recognitionRef.current = new SpeechRecognition();
+      console.log('recognitionRef.current 호출 완료', recognitionRef.current.onresult);
+      recognitionRef.current.lang = 'ko-KR';
+      
+      // 모바일 환경에서만 continuous와 interimResults를 false로 설정
+      if (isMobile) {
+        recognitionRef.current.continuous = false;
+        recognitionRef.current.interimResults = false;
+      } else {
+        recognitionRef.current.continuous = true;
+        recognitionRef.current.interimResults = true;
+      }
+
+      console.log('SpeechRecognition 설정:', {
+        isMobile,
+        continuous: recognitionRef.current.continuous,
+        interimResults: recognitionRef.current.interimResults
+      });
+
+      // 기존의 onresult, onerror 등의 이벤트 핸들러 설정...
+
+      // 모바일에서 음성 인식이 자동으로 끝나면 다시 시작
+      recognitionRef.current.onend = () => {
+        console.log('음성 인식 종료');
+        setIsRecording(false);
+        if (isMobile && interviewState === 'interviewing') {
+          console.log('모바일 환경에서 음성 인식 재시작');
+          startRecording();
+        }
+      };
+
+    }, [isMobile, interviewState]);
 
     const startRecording = useCallback(async () => {
       console.log('녹음 시작 중...');
@@ -171,8 +221,21 @@
         recognitionRef.current = new SpeechRecognition();
         console.log('recognitionRef.current 호출 완료',recognitionRef.current.onresult);
         recognitionRef.current.lang = 'ko-KR';
-        recognitionRef.current.continuous = true;
-        recognitionRef.current.interimResults = true;
+        
+        // 모바일 환경에서만 continuous와 interimResults를 false로 설정
+        if (isMobile) {
+          recognitionRef.current.continuous = false;
+          recognitionRef.current.interimResults = false;
+        } else {
+          recognitionRef.current.continuous = true;
+          recognitionRef.current.interimResults = true;
+        }
+
+        console.log('SpeechRecognition 설정:', {
+          isMobile,
+          continuous: recognitionRef.current.continuous,
+          interimResults: recognitionRef.current.interimResults
+        });
 
         recognitionRef.current.onresult = (event: SpeechRecognitionEvent) => {
           console.log('recognitionRef.current.onresult 호출 완료', event.results);
@@ -242,7 +305,7 @@
         setIsRecording(false);
         setIsListening(false);  // 추가된 부분
       }
-    }, [hasMicPermission, requestMicrophonePermission, setErrorMessage, setInterviewState, initializeAudioContext]);
+    }, [hasMicPermission, requestMicrophonePermission, setErrorMessage, setInterviewState, initializeAudioContext, initializeSpeechRecognition]);
 
     const stopRecording = useCallback(() => {
       if (recognitionRef.current) {
