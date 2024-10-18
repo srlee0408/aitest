@@ -97,6 +97,9 @@
     const [isUserSpeaking, setIsUserSpeaking] = useState(false);
     const [isListening, setIsListening] = useState<boolean>(false);
     const [isMobile, setIsMobile] = useState(false);
+    const [showWebcam, setShowWebcam] = useState(false);
+    const videoRef = useRef<HTMLVideoElement | null>(null);
+    const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
 
     useEffect(() => {
       threadIdRef.current = threadId;
@@ -134,6 +137,23 @@
       }
     }, []);
 
+    const requestCameraPermission = useCallback(async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        setHasCameraPermission(true);
+        console.log('videoRef.current',videoRef.current);
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+        return stream;
+      } catch (error) {
+        console.error('카메라 권한 요청 실패:', error);
+        setErrorMessage('카메라 사용 권한이 필요합니다. 브라우저 설정에서 권한을 허용해주세요.');
+        setHasCameraPermission(false);
+        return null;
+      }
+    }, [setErrorMessage]);
+
     useEffect(() => {
       const checkSpeechRecognitionSupport = () => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -144,7 +164,8 @@
 
       checkSpeechRecognitionSupport();
       requestMicrophonePermission();
-    }, [requestMicrophonePermission]);
+      requestCameraPermission();
+    }, [requestMicrophonePermission, requestCameraPermission]);
 
     const initializeSpeechRecognition = useCallback(() => {
       const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -239,8 +260,9 @@
         });
 
         recognitionRef.current.onresult = (event: SpeechRecognitionEvent) => {
-          console.log('recognitionRef.current.onresult 호출 완료', event.results);
-          const transcript = event.results[0][0].transcript;
+          const result = event.results[event.results.length - 1];
+          const transcript = result[0].transcript;
+          console.log('recognitionRef.current.onresult 호출 완료', transcript);
           setCurrentTranscript(transcript);
           setIsUserSpeaking(true);
 
@@ -281,8 +303,6 @@
           setErrorMessage('음성 인식 중 오류가 발생했습니다.');
         };
 
-        let restartTimeout: NodeJS.Timeout | null = null;
-
         recognitionRef.current.onend = () => {
           console.log('음성 인식이 종료되었습니다.');
           if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
@@ -295,9 +315,11 @@
           setIsRecording(true);
           setIsListening(true);  // 추가된 부분
         };
+
         recognitionRef.current.onspeechstart = () => {
           console.log('음성이 감지되었습니다.');
         };
+
         recognitionRef.current.start();
         console.log('음성 인식 시작을 요청했습니다.');
       } catch (error) {
@@ -390,12 +412,12 @@
       }
     }, [setErrorMessage, setInterviewState, handleContinueInterview, threadIdRef]);
 
-    const handleConfirm = async () => { //시작 부분
+    const handleConfirm = async () => {
       if (number.length === 11) {
         try {
           const isValidNumber = await checkPhoneNumberWithWebhook(number);
           if (isValidNumber) {
-            if (hasMicPermission) {
+            if (hasMicPermission && hasCameraPermission) {
               setInterviewState('interviewing');
               setErrorMessage('');
               try {
@@ -405,6 +427,9 @@
                 setInterviewMessage(message);
                 await speakText(message);
                 console.log('AI 음성 출력 완료. 사용자 응답 대기 중...');
+                // 웹캠 시작
+                startWebcam();
+                console.log('웹캠 시작');
                 // 자동으로 녹음 시작
                 startRecording();
                 console.log('startRecording 호출 완료');
@@ -414,14 +439,14 @@
                 setInterviewState('idle');
               }
             } else {
-              setErrorMessage('마이크 권한이 필요합니다. 브라우저 설정에서 권한을 허용한 후 다시 시도해세요.');
+              setErrorMessage('마이크와 카메라 권한이 필요합니다. 브라우저 설정에서 권한을 허용한 후 다시 시도해세요.');
             }
           } else {
             setErrorMessage('등록되지 않은 전화번호입니다.');
           }
         } catch (error) {
           console.error('Error checking phone number:', error);
-          setErrorMessage('전화번호 확인 중 오류가 발생했습니다. 다시 시도해 주요요.');
+          setErrorMessage('전화번호 확인 중 오류가 발생했습니다. 다시 시도해 주세요.');
         }
       } else {
         setErrorMessage('올바른 11자리 번호를 입력해주세요.');
@@ -431,6 +456,7 @@
     const closeEndPopup = () => {
       setShowEndPopup(false);
       sendInterviewHistoryToWebhook();
+      stopWebcam();
     }
 
     const sendInterviewHistoryToWebhook = async () => {
@@ -501,25 +527,60 @@
         }
       };
     }, []);
+    //웹켐 시작
+    const startWebcam = useCallback(async () => {
+      try {
+        console.log('웹캠 시작 시도...');
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        console.log('웹캠 스트림 획득 성공:', stream);
+    
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          console.log('비디오 요소에 스트림 설정 완료');
+    
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play().then(() => {
+              console.log('웹캠 비디오 재생 시작');
+              setShowWebcam(true);
+            }).catch(error => {
+              console.error('웹캠 비디오 재생 실패:', error);
+            });
+          };
+        } else {
+          console.error('비디오 요소가 없습니다. 5초 후 재시도합니다.');
+          setTimeout(startWebcam, 5000);  // 5초 후 재시도
+        }
+      } catch (error) {
+        console.error('웹캠 시작 오류:', error);
+        setErrorMessage('웹캠을 시작할 수 없습니다. 권한을 확인해주세요.');
+      }
+    }, [setErrorMessage]);
+  
+    const stopWebcam = useCallback(() => {
+      if (videoRef.current && videoRef.current.srcObject) {
+        const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
+        tracks.forEach(track => track.stop());
+      }
+      setShowWebcam(false);
+      console.log('웹캠 중지됨');
+    }, []);
+
+
 
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-100">
+      <main className="min-h-screen flex flex-col items-center justify-center bg-gray-100">
         <div className="max-w-md w-full bg-white rounded-3xl shadow-xl overflow-hidden p-8">
-          <div className="relative mb-2">
-            {hasMicPermission && (
-              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full">
-                <div className="flex items-center justify-center bg-green-500 text-white text-xs px-2 py-1 rounded-full">
-                  <div className="w-2 h-2 bg-white rounded-full mr-1"></div>
-                  마이크 연결됨
-                </div>
-              </div>
-            )}
-          </div>
           <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">AI 면접 프로그램</h1>
-          
-          {hasMicPermission === false && (
-            <p className="text-yellow-500 text-center mt-4 mb-4">마이크 사용 권한이 필요합니다. 브라우저 설정에서 권한을 허용해주세요.</p>
-          )}
+          <div className={`mb-6 relative w-full h-48 bg-black ${showWebcam ? '' : 'hidden'}`}>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="absolute top-0 left-0 w-full h-full object-contain"
+              onError={(e) => console.error('비디오 요소 오류:', e)}
+            />
+          </div>
 
           {interviewState === 'idle' && (
             <>
@@ -564,7 +625,7 @@
                 </Button>
               </div>
             </>
-          )}
+          )}          
           {interviewState === 'interviewing' && (
             <>
               <p className="text-xl text-center mb-4 text-gray-600">{interviewMessage}</p>
