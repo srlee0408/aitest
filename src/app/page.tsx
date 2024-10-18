@@ -557,11 +557,6 @@
               </div>
             </div>
           )}
-          {isListening && (
-            <div className="listening-indicator">
-              음성을 듣고 있습니다...
-            </div>
-          )}
         </div>
       </main>
     )
