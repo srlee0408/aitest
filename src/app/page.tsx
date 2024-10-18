@@ -109,6 +109,7 @@
         return /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
       };
       setIsMobile(checkMobile());
+      console.log('isMobile', isMobile);
     }, []);
 
     const initializeAudioContext = useCallback(() => {
