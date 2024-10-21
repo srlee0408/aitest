@@ -10,5 +10,14 @@ const nextConfig = {
     CHECK_PHONE_WEBHOOK_URL: process.env.CHECK_PHONE_WEBHOOK_URL,
     INTERVIEW_HISTORY_WEBHOOK_URL: process.env.INTERVIEW_HISTORY_WEBHOOK_URL,
   },
+  // 아래 설정 추가
+  async rewrites() {
+    return [
+      {
+        source: '/uploads/:path*',
+        destination: '/public/uploads/:path*',
+      },
+    ]
+  },
 }
 module.exports = nextConfig

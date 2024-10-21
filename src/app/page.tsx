@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { checkPhoneNumberWithWebhook } from '@/lib/db'
 import { startInterview, continueInterview, endInterview } from '@/lib/gptAssistant'
-import { textToSpeech, playAudio } from '@/lib/elevenlabs'
 import axios from 'axios'
 import { sendInterviewHistory } from '@/lib/db'
 import { useInterview } from '../contexts/InterviewContext';
@@ -100,6 +99,8 @@ export default function Home() {
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [isAISpeaking, setIsAISpeaking] = useState(false);
   const [showEndPopup, setShowEndPopup] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
 
   useEffect(() => {
     threadIdRef.current = threadId;
@@ -252,13 +253,13 @@ export default function Home() {
     }
   }, [initializeAudioContext, setErrorMessage, setIsAISpeaking]);
 
-  const sendInterviewHistoryToWebhook = useCallback(async (finalHistory: string) => {
+  const sendInterviewHistoryToWebhook = useCallback(async (number: string, finalHistory: string, videoUrl: string) => {
     if (number && finalHistory) {
       console.log('면접 히스토리 전송 시도 중...');
       console.log('전송할 히스토리:', finalHistory);
+      console.log('전송할 비디오 URL:', videoUrl);
       try {
-
-        const success = await sendInterviewHistory(number, finalHistory);
+        const success = await sendInterviewHistory(number, finalHistory, videoUrl);
         
         console.log('sendInterviewHistory 결과:', success);
         if (success) {
@@ -277,6 +278,71 @@ export default function Home() {
     }
   }, [number, setInterviewMessage]);
 
+  const startMediaRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const options = { mimeType: 'video/webm;codecs=vp9,opus' };
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        console.warn(`${options.mimeType} is not supported`);
+        options.mimeType = 'video/webm;codecs=vp8,opus';
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+          console.warn(`${options.mimeType} is not supported`);
+          options.mimeType = 'video/webm';
+          if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+            console.error('No supported mimeType found');
+            throw new Error('No supported mimeType found for this browser');
+          }
+        }
+      }
+      const mediaRecorder = new MediaRecorder(stream, options);
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          setRecordedChunks((prev) => [...prev, event.data]);
+        }
+      };
+
+      mediaRecorder.start(1000); // 1초마다 데이터를 받습니다.
+      console.log('Media recording started');
+    } catch (error) {
+      console.error('Error starting media recording:', error);
+      setErrorMessage('녹화를 시작할 수 없습니다. 권한을 확인해주세요.');
+    }
+  }, [setErrorMessage, setIsRecording]);
+
+  const stopMediaRecording = useCallback(() => {
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      console.log('Media recording stopped');
+    }
+  }, []);
+
+  const uploadRecording = useCallback(async () => {
+    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+    const formData = new FormData();
+    formData.append('file', blob, 'recording.webm');
+    formData.append('phoneNumber', number);
+
+    try {
+      const response = await axios.post('/api/upload', formData);
+      const { fileUrl } = response.data;
+      const fullFileUrl = `${window.location.origin}${fileUrl}`;
+      console.log('업로드된 파일 URL:', fullFileUrl);
+      console.log('녹화된 영상 미리보기:');
+      const videoElement = document.createElement('video');
+      videoElement.src = URL.createObjectURL(blob);
+      videoElement.controls = true;
+      document.body.appendChild(videoElement);
+      return fullFileUrl;
+    } catch (error) {
+      console.error('파일 업로드 중 오류 발생:', error);
+      setErrorMessage('녹화 파일 업로드에 실패했습니다.');
+      return null;
+    }
+  }, [recordedChunks, setErrorMessage, number]);
+
   const handleInterviewEnd = useCallback(async (finalHistory: string) => {
     try {
       const response = await axios.post('/api/end_interview');
@@ -285,18 +351,26 @@ export default function Home() {
       setInterviewState('ended');
       
       console.log('면접 히스토리 전송 시작');
-      console.log('Final history to be sent:', finalHistory);
-      await sendInterviewHistoryToWebhook(finalHistory);
-      console.log('면접 히스토리 전송 완료');
+      console.log('전송할 최종 히스토리:', finalHistory);
+
+      stopMediaRecording();
+      const fileUrl = await uploadRecording();
+
+      if (fileUrl) {
+        await sendInterviewHistoryToWebhook(number, finalHistory, fileUrl);
+        console.log('면접 히스토리 전송 완료');
+      } else {
+        console.error('파일 URL을 가져오지 못했습니다.');
+      }
       
       stopWebcam();
       await speakText(endMessage);
       setShowEndPopup(true);
     } catch (error) {
-      console.error('Error ending interview:', error);
+      console.error('면접 종료 중 오류 발생:', error);
       setErrorMessage('면접 종료 중 오류가 발생했습니다.');
     }
-  }, [sendInterviewHistoryToWebhook, stopWebcam, speakText, setErrorMessage, setInterviewMessage, setInterviewState, setShowEndPopup]);
+  }, [sendInterviewHistoryToWebhook, stopWebcam, speakText, setErrorMessage, setInterviewMessage, setInterviewState, setShowEndPopup, stopMediaRecording, uploadRecording, number]);
 
   const stopRecording = useCallback(async () => {
     if (recognitionRef.current) {
@@ -359,8 +433,8 @@ export default function Home() {
               setInterviewMessage(message);
               await speakText(message);
               console.log('AI 음성 출력 완료. 사용자 응답 대기 중...');
-              // 웹캠 시작
               startWebcam();
+              startMediaRecording(); // Start recording when the interview starts
               console.log('웹캠 시작');
               console.log('startRecording 호출 완료');
             } catch (error) {
@@ -522,32 +596,38 @@ export default function Home() {
                     </div>
                   </div>
                 )}
-                <div className="flex flex-row justify-center space-x-4 mb-5">
-                  <Button
-                    onClick={startRecording}
-                    disabled={isRecording || isAISpeaking}
-                    className="w-48 h-16 text-4xl bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:scale-105"
-                  >
-                    답변 시작
-                  </Button>
-                  <Button
-                    onClick={stopRecording}
-                    disabled={!isRecording || isAISpeaking}
-                    className="w-48 h-16 text-4xl bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:scale-105"
-                  >
-                    답변 종료
-                  </Button>
-                </div>
+                {interviewState === 'interviewing' && !isAISpeaking && (
+                  <div className="flex flex-row justify-center space-x-4 mb-5">
+                    {!isRecording && (
+                      <Button
+                        onClick={startRecording}
+                        className="w-48 h-16 text-4xl bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:scale-105"
+                      >
+                        답변 시작
+                      </Button>
+                    )}
+                    {isRecording && (
+                      <Button
+                        onClick={stopRecording}
+                        className="w-48 h-16 text-4xl bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:scale-105"
+                      >
+                        답변 종료
+                      </Button>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </>
         )}
         
         {interviewState === 'ended' && (
-          <p className="text-xl text-left text-4xl mb-4 text-gray-600">{interviewMessage}</p>
+          <div className="w-full bg-gray-100 rounded-lg p-3 mt-2 text-2xl mb-10 text-gray-600 leading-relaxed">
+            <p className="text-gray-600">{interviewMessage}</p>
+          </div>
         )}
         
-        {errorMessage && errorMessage !== '마이크 사용 권한이 필요합니다. 브라우저 설정에서 권한을 허용해주세요.' && (
+        {errorMessage && errorMessage !== '마이크 사용 권한이 필요합니다. 브라우저 설정에서 권한을 허용해주요.' && (
           <p className="text-red-500 text-center mt-4">{errorMessage}</p>
         )}
       </div>

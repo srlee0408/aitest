@@ -64,7 +64,7 @@ export async function onApplicantConfirm() {
       console.log('전화번호가 등록되지 않았습니다.');
     }
   } else {
-    console.log('유효한 전화번호를 받지 못했���니다. 면접을 진행할 수 없습니다.');
+    console.log('유효한 전화번호를 받지 못했습니다. 면접을 진행할 수 없습니다.');
   }
 }
 
@@ -91,15 +91,20 @@ export async function checkPhoneNumberWithWebhook(phoneNumber: string): Promise<
 }
 
 // 면접 히스토리를 웹훅으로 전송하는 함수
-export const sendInterviewHistory = async (phoneNumber: string, transcript: string): Promise<boolean> => {
+export const sendInterviewHistory = async (
+  phoneNumber: string,
+  transcript: string,
+  fileUrl: string
+): Promise<boolean> => {
   const { INTERVIEW_HISTORY_WEBHOOK_URL } = await getEnvVariables();
   console.log('sendInterviewHistory 함수 호출됨');
-  console.log('전송할 데이터:', { phoneNumber, transcript });
+  console.log('전송할 데이터:', { phoneNumber, transcript, fileUrl });
   try {
     console.log('Make 웹훅으로 POST 요청 전송 중...');
     const response = await axios.post(INTERVIEW_HISTORY_WEBHOOK_URL, {
       phoneNumber,
-      transcript
+      transcript,
+      fileUrl
     });
     
     console.log('Make 응답:', response.data);
