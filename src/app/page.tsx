@@ -99,10 +99,11 @@ export default function Home() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [isAISpeaking, setIsAISpeaking] = useState(false);
+  const [showEndPopup, setShowEndPopup] = useState(false);
 
   useEffect(() => {
     threadIdRef.current = threadId;
-    console.log('threadId가 변경됨:', threadIdRef.current);
+    //console.log('threadId가 변경됨:', threadIdRef.current);
   }, [threadId]);
 
   useEffect(() => {
@@ -111,7 +112,7 @@ export default function Home() {
       return /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
     };
     setIsMobile(checkMobile());
-    console.log('isMobile', isMobile);
+    //console.log('isMobile', isMobile);
   }, []);
 
   const initializeAudioContext = useCallback(() => {
@@ -140,13 +141,13 @@ export default function Home() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       setHasCameraPermission(true);
-      console.log('videoRef.current',videoRef.current);
+      //console.log('videoRef.current',videoRef.current);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
       return stream;
     } catch (error) {
-      console.error('카메라 권한 요청 실패:', error);
+      //console.error('카메라 권한 요청 실패:', error);
       setErrorMessage('카메라 사용 권한이 필요합니다. 브라우저 설정에서 권한을 허용해주세요.');
       setHasCameraPermission(false);
       return null;
@@ -169,7 +170,7 @@ export default function Home() {
   const initializeSpeechRecognition = useCallback(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      console.error('SpeechRecognition is not supported in this browser');
+      //console.error('SpeechRecognition is not supported in this browser');
       setErrorMessage('이 브라우저는 음성 인식을 지원하지 않습니다.');
       return;
     }
@@ -184,18 +185,10 @@ export default function Home() {
         .map(result => result[0].transcript)
         .join('');
       setCurrentTranscript(transcript);
-      console.log('Transcript:', transcript);
-      if (checkInterviewEnd(transcript)) {
-        setInterviewMessage(transcript);  
-        setInterviewState('ended');
-        sendInterviewHistoryToWebhook(); 
-        stopWebcam();
-      } else {
-        setInterviewHistory(prev => prev + `면접관: ${transcript}\n`);
-      }
+      console.log('면접자 음성:', transcript);
     };
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      console.error('Speech recognition error', event.error);
+      //console.error('Speech recognition error', event.error);
       setErrorMessage(`음성 인식 오류: ${event.error}`);
     };
 
@@ -221,6 +214,90 @@ export default function Home() {
     }
   }, [isAISpeaking, initializeSpeechRecognition]);
 
+  const checkInterviewEnd = useCallback((response: string): boolean => {
+    return response.includes("면접이 종료되었습니다") || response.includes("면접을 마치겠습니다") || response.includes("수고하셨습니다.");
+  }, []);
+
+  const stopWebcam = useCallback(() => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
+      tracks.forEach(track => track.stop());
+    }
+    setShowWebcam(false);
+    console.log('웹캠 중지됨');
+  }, []);
+
+  const speakText = useCallback(async (text: string) => {
+    try {
+      setIsAISpeaking(true);
+      initializeAudioContext();
+      const response = await axios.post('/api/text_to_speech', { text }, { responseType: 'arraybuffer' })
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)()
+      const audioBuffer = await audioContext.decodeAudioData(response.data)
+      const source = audioContext.createBufferSource()
+      source.buffer = audioBuffer
+      source.connect(audioContext.destination)
+      source.start(0)
+      console.log('speakText', response.data)
+      return new Promise<void>((resolve) => {
+        source.onended = () => {
+          setIsAISpeaking(false);
+          resolve()
+        }
+      })
+    } catch (error) {
+      console.error('Error in speakText:', error)
+      setErrorMessage('음성 합성 중 오류 발생했습니다.')
+      setIsAISpeaking(false);
+    }
+  }, [initializeAudioContext, setErrorMessage, setIsAISpeaking]);
+
+  const sendInterviewHistoryToWebhook = useCallback(async (finalHistory: string) => {
+    if (number && finalHistory) {
+      console.log('면접 히스토리 전송 시도 중...');
+      console.log('전송할 히스토리:', finalHistory);
+      try {
+
+        const success = await sendInterviewHistory(number, finalHistory);
+        
+        console.log('sendInterviewHistory 결과:', success);
+        if (success) {
+          console.log('면접 기록이 성공적으로 저장되었습니다.');
+          setInterviewMessage(prevMessage => prevMessage + "\n면접 기록이 성공적으로 저장되었습니다.");
+        } else {
+          console.error('면접 기록 저장에 실패했습니다.');
+          setInterviewMessage(prevMessage => prevMessage + "\n면접 기록 저장에 실패했습니다. 관리자에게 문의해주세요.");
+        }
+      } catch (error) {
+        console.error('면접 히스토리 전송 중 오류 발생:', error);
+        setInterviewMessage(prevMessage => prevMessage + "\n면접 기록 저장 중 오류가 발생했습니다. 관리자에게 문의해주세요.");
+      }
+    } else {
+      console.warn('전화번호 또는 면접 히스토리가 비어 있어 히스토리를 전송하지 않았습니다.');
+    }
+  }, [number, setInterviewMessage]);
+
+  const handleInterviewEnd = useCallback(async (finalHistory: string) => {
+    try {
+      const response = await axios.post('/api/end_interview');
+      const endMessage = response.data.message;
+      setInterviewMessage(endMessage);
+      setInterviewState('ended');
+      
+      console.log('면접 히스토리 전송 시작');
+      console.log('Final history to be sent:', finalHistory);
+      await sendInterviewHistoryToWebhook(finalHistory);
+      console.log('면접 히스토리 전송 완료');
+      
+      stopWebcam();
+      await speakText(endMessage);
+      setShowEndPopup(true);
+    } catch (error) {
+      console.error('Error ending interview:', error);
+      setErrorMessage('면접 종료 중 오류가 발생했습니다.');
+    }
+  }, [sendInterviewHistoryToWebhook, stopWebcam, speakText, setErrorMessage, setInterviewMessage, setInterviewState, setShowEndPopup]);
+
   const stopRecording = useCallback(async () => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
@@ -228,11 +305,24 @@ export default function Home() {
       console.log('음성 인식 종료');
       
       if (currentTranscript.trim() && threadIdRef.current) {
+        // 지원자의 답변을 면접 기록에 추가
+        const updatedHistory = interviewHistory + `지원자: ${currentTranscript}\n`;
+        setInterviewHistory(updatedHistory);
+        console.log("Updated interview history:", updatedHistory);
+        
         try {
           const response = await continueInterview(currentTranscript, threadIdRef.current);
           setInterviewMessage(response);
-          await speakText(response);
-
+          // AI의 응답을 면접 기록에 추가
+          const finalHistory = updatedHistory + `면접관: ${response}\n`;
+          setInterviewHistory(finalHistory);
+          console.log("Final interview history:", finalHistory);
+          
+          if (checkInterviewEnd(response)) {
+            await handleInterviewEnd(finalHistory);
+          } else {
+            await speakText(response);
+          }
         } catch (error) {
           console.error('Error sending user response to GPT:', error);
           setErrorMessage('응답 처리 중 오류가 발생했습니다.');
@@ -240,11 +330,19 @@ export default function Home() {
       }
       setCurrentTranscript('');
     }
-  }, [currentTranscript, startRecording, continueInterview, setInterviewMessage, setErrorMessage]);
-
-  const checkInterviewEnd = useCallback((response: string): boolean => {
-    return response.includes("답변해주셔서 감사합니다. 이로써 면접이 종료되었습니다.");
-  }, []);
+  }, [
+    currentTranscript, 
+    continueInterview, 
+    setInterviewMessage, 
+    setErrorMessage, 
+    setInterviewHistory, 
+    setCurrentTranscript,
+    threadIdRef,
+    checkInterviewEnd,
+    handleInterviewEnd,
+    speakText,
+    interviewHistory
+  ]);
 
   const handleConfirm = async () => {
     if (number.length === 11) {
@@ -284,53 +382,6 @@ export default function Home() {
       setErrorMessage('올바른 11자리 번호를 입력해주세요.');
     }
   };
-
-  const sendInterviewHistoryToWebhook = async () => {
-    if (number && interviewHistory) {
-      console.log('면접 히스토리 전송 시도 중...');
-      try {
-        const success = await sendInterviewHistory(number, interviewHistory);
-        console.log('sendInterviewHistory 결과:', success);
-        if (success) {
-          console.log('면접 기록이 성공적으로 저장되었습니다.');
-          setInterviewMessage(prevMessage => prevMessage + "\n면접 기록이 성공적으로 저장되었습니다.");
-        } else {
-          console.error('면접 기록 저장에 실패했습니다.');
-          setInterviewMessage(prevMessage => prevMessage + "\n면접 기록 저장에 실패했습니다. 관리자에게 문의해주세요.");
-        }
-      } catch (error) {
-        console.error('면접 히스토리 전송 중 오류 발생:', error);
-        setInterviewMessage(prevMessage => prevMessage + "\n면접 기록 저장 중 오류가 발생했습니다. 관리자에게 문의해주세요.");
-      }
-    } else {
-      console.warn('전화번호 또는 면접 히스토리가 비어 있어 히스토리를 전송하지 않았습니다.');
-    }
-  };
-
-  const speakText = async (text: string) => {
-    try {
-      setIsAISpeaking(true);
-      initializeAudioContext();
-      const response = await axios.post('/api/text_to_speech', { text }, { responseType: 'arraybuffer' })
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)()
-      const audioBuffer = await audioContext.decodeAudioData(response.data)
-      const source = audioContext.createBufferSource()
-      source.buffer = audioBuffer
-      source.connect(audioContext.destination)
-      source.start(0)
-      console.log('speakText', response.data)
-      return new Promise<void>((resolve) => {
-        source.onended = () => {
-          setIsAISpeaking(false);
-          resolve()
-        }
-      })
-    } catch (error) {
-      console.error('Error in speakText:', error)
-      setErrorMessage('음성 합성 중 오류 발생했습니다.')
-      setIsAISpeaking(false);
-    }
-  }
 
   const addDigit = (digit: string) => {
     if (number.length < 11) {
@@ -384,15 +435,6 @@ export default function Home() {
       setErrorMessage('웹캠을 시작할 수 없습니다. 권한을 확인해주세요.');
     }
   }, [setErrorMessage]);
-
-  const stopWebcam = useCallback(() => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-      tracks.forEach(track => track.stop());
-    }
-    setShowWebcam(false);
-    console.log('웹캠 중지됨');
-  }, []);
 
   useEffect(() => {
     initializeSpeechRecognition();
