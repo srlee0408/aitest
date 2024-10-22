@@ -99,7 +99,7 @@ export const sendInterviewHistory = async (
   console.log('sendInterviewHistory 함수 호출됨');
   console.log('전송할 데이터:', { phoneNumber, transcript });
   try {
-    console.log('Make 웹훅으로 GET 요청 전송 중...');
+    console.log('Make 웹훅으로 POST 요청 전송 중...');
     const response = await axios.post(INTERVIEW_HISTORY_WEBHOOK_URL, {
       phoneNumber,
       transcript
