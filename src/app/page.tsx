@@ -66,6 +66,7 @@ declare global {
     webkitSpeechRecognition: {
       new (): SpeechRecognition;
     };
+    smartlook: any;
   }
 }
 
@@ -84,7 +85,7 @@ export default function Home() {
   const [interviewMessage, setInterviewMessage] = useState('')
   const [isRecording, setIsRecording] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [hasMicPermission, setHasMicPermission] = useState<boolean | null>(null); // null��� 아직 확인되지 않은 상태를 의미
+  const [hasMicPermission, setHasMicPermission] = useState<boolean | null>(null); // null 아직 확인되지 않은 상태를 의미
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const [interviewHistory, setInterviewHistory] = useState<string>('');
   const beepAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -249,7 +250,7 @@ export default function Home() {
       })
     } catch (error) {
       console.error('Error in speakText:', error)
-      setErrorMessage('음�� 합성 중 오류 발생했습니다.')
+      setErrorMessage('음 합성 중 오류 발생했습니다.')
       setIsAISpeaking(false);
     }
   }, [initializeAudioContext, setErrorMessage, setIsAISpeaking]);
@@ -501,16 +502,22 @@ export default function Home() {
     initializeSpeechRecognition();
   }, [initializeSpeechRecognition]);
 
+  useEffect(() => {
+    // Smartlook 초기화
+    if (typeof window !== 'undefined' && window.smartlook) {
+      window.smartlook('init', '9594b14013bf21cbd1bc5cf16408aa7e29898eb7', { region: 'eu' });
+    }
+  }, []);
+
   return (
     <main className="min-h-screen flex flex-col items-center justify-center bg-gray-100">
-      <Script id="smartlook" strategy="afterInteractive">
+      <Script id="smartlook-script" strategy="afterInteractive">
         {`
           window.smartlook||(function(d) {
             var o=smartlook=function(){ o.api.push(arguments)},h=d.getElementsByTagName('head')[0];
             var c=d.createElement('script');o.api=new Array();c.async=true;c.type='text/javascript';
             c.charset='utf-8';c.src='https://web-sdk.smartlook.com/recorder.js';h.appendChild(c);
           })(document);
-          smartlook('init', '9594b14013bf21cbd1bc5cf16408aa7e29898eb7', { region: 'eu' });
         `}
       </Script>
       
