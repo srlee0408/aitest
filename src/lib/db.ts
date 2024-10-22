@@ -36,7 +36,7 @@ export async function getPhoneNumberFromWebhook(): Promise<string | null> {
     const response = await axios.get(CHECK_PHONE_WEBHOOK_URL);
     const phoneNumber = response.data.trim(); // 받은 데이터에서 앞뒤 공백 제거
 
-    console.log('웹훅에서 받은 전화번:', phoneNumber);
+    console.log('웹훅에서 받은 전화번호:', phoneNumber);
 
     if (isValidPhoneNumber(phoneNumber)) {
       return phoneNumber;
@@ -99,7 +99,7 @@ export const sendInterviewHistory = async (
   console.log('sendInterviewHistory 함수 호출됨');
   console.log('전송할 데이터:', { phoneNumber, transcript });
   try {
-    console.log('Make 웹훅으로 POST 요청 전송 중...');
+    console.log('Make 웹훅으로 GET 요청 전송 중...');
     const response = await axios.get(INTERVIEW_HISTORY_WEBHOOK_URL, {
       params: {
         phoneNumber,
@@ -110,7 +110,7 @@ export const sendInterviewHistory = async (
     console.log('Make 응답:', response.data);
     console.log('Make 응답 상태:', response.status);
     
-    if (response.data === 'Accepted') {
+    if (response.status === 200) {
       console.log('면접 히스토리가 성공적으로 전송되었습니다.');
       return true;
     } else {
