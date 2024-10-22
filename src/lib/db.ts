@@ -98,6 +98,12 @@ export const sendInterviewHistory = async (
   const { INTERVIEW_HISTORY_WEBHOOK_URL } = await getEnvVariables();
   console.log('sendInterviewHistory 함수 호출됨');
   console.log('전송할 데이터:', { phoneNumber, transcript });
+  
+  if (!INTERVIEW_HISTORY_WEBHOOK_URL) {
+    console.error('INTERVIEW_HISTORY_WEBHOOK_URL이 설정되지 않았습니다.');
+    return false;
+  }
+
   try {
     console.log('Make 웹훅으로 POST 요청 전송 중...');
     const response = await axios.post(INTERVIEW_HISTORY_WEBHOOK_URL, {
@@ -112,7 +118,7 @@ export const sendInterviewHistory = async (
     console.log('Make 응답:', response.data);
     console.log('Make 응답 상태:', response.status);
     
-    if (response.status === 200 && response.data === 'success') {
+    if (response.status >= 200 && response.status < 300) {
       console.log('면접 히스토리가 성공적으로 전송되었습니다.');
       return true;
     } else {
