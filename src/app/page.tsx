@@ -100,8 +100,6 @@ export default function Home() {
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [isAISpeaking, setIsAISpeaking] = useState(false);
   const [showEndPopup, setShowEndPopup] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
 
   useEffect(() => {
     threadIdRef.current = threadId;
@@ -278,57 +276,6 @@ export default function Home() {
     }
   }, [setInterviewMessage]);
 
-  const startMediaRecording = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480 },
-        audio: true
-      });
-
-      const options = { mimeType: 'video/webm; codecs=vp9,opus' };
-      const mediaRecorder = new MediaRecorder(stream, options);
-      mediaRecorderRef.current = mediaRecorder;
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          setRecordedChunks((prev) => [...prev, event.data]);
-        }
-      };
-
-      mediaRecorder.start(1000); // 1초마다 데이터를 받습니다.
-      console.log('Media recording started');
-    } catch (error) {
-      console.error('Error starting media recording:', error);
-      setErrorMessage('녹화를 시작할 수 없습니다. 권한을 확인해주세요.');
-    }
-  }, [setErrorMessage]);
-
-  const stopMediaRecording = useCallback(() => {
-    if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.stop();
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-      console.log('Media recording stopped');
-    }
-  }, []);
-
-  const uploadRecording = useCallback(async () => {
-    const blob = new Blob(recordedChunks, { type: 'video/webm' });
-    const formData = new FormData();
-    formData.append('file', blob, 'recording.webm');
-    formData.append('phoneNumber', number);
-
-    try {
-      const response = await axios.post('/api/upload', formData);
-      const { fileUrl } = response.data;
-      console.log('업로드된 파일 URL:', fileUrl);
-      return fileUrl;
-    } catch (error) {
-      console.error('파일 업로드 중 오류 발생:', error);
-      setErrorMessage('녹화 파일 업로드에 실패했습니다.');
-      return null;
-    }
-  }, [recordedChunks, setErrorMessage, number]);
-
   const handleInterviewEnd = useCallback(async (finalHistory: string) => {
     try {
       const response = await axios.post('/api/end_interview');
@@ -357,7 +304,7 @@ export default function Home() {
       console.error('면접 종료 중 오류 발생:', error);
       setErrorMessage('면접 종료 중 오류가 발생했습니다.');
     }
-  }, [sendInterviewHistoryToWebhook, stopWebcam, speakText, setErrorMessage, setInterviewMessage, setInterviewState, setShowEndPopup, stopMediaRecording, uploadRecording, number]);
+  }, [sendInterviewHistoryToWebhook, stopWebcam, speakText, setErrorMessage, setInterviewMessage, setInterviewState, setShowEndPopup,number]);
 
   const stopRecording = useCallback(async () => {
     if (recognitionRef.current) {
