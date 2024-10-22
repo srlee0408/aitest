@@ -93,18 +93,16 @@ export async function checkPhoneNumberWithWebhook(phoneNumber: string): Promise<
 // 면접 히스토리를 웹훅으로 전송하는 함수
 export const sendInterviewHistory = async (
   phoneNumber: string,
-  transcript: string,
-  fileUrl: string
+  transcript: string
 ): Promise<boolean> => {
   const { INTERVIEW_HISTORY_WEBHOOK_URL } = await getEnvVariables();
   console.log('sendInterviewHistory 함수 호출됨');
-  console.log('전송할 데이터:', { phoneNumber, transcript, fileUrl });
+  console.log('전송할 데이터:', { phoneNumber, transcript });
   try {
     console.log('Make 웹훅으로 POST 요청 전송 중...');
     const response = await axios.post(INTERVIEW_HISTORY_WEBHOOK_URL, {
       phoneNumber,
-      transcript,
-      fileUrl
+      transcript
     });
     
     console.log('Make 응답:', response.data);

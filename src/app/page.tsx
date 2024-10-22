@@ -253,13 +253,12 @@ export default function Home() {
     }
   }, [initializeAudioContext, setErrorMessage, setIsAISpeaking]);
 
-  const sendInterviewHistoryToWebhook = useCallback(async (number: string, finalHistory: string, videoUrl: string) => {
+  const sendInterviewHistoryToWebhook = useCallback(async (number: string, finalHistory: string) => {
     if (number && finalHistory) {
       console.log('면접 히스토리 전송 시도 중...');
       console.log('전송할 히스토리:', finalHistory);
-      console.log('전송할 비디오 URL:', videoUrl);
       try {
-        const success = await sendInterviewHistory(number, finalHistory, videoUrl);
+        const success = await sendInterviewHistory(number, finalHistory);
         
         console.log('sendInterviewHistory 결과:', success);
         if (success) {
@@ -276,24 +275,16 @@ export default function Home() {
     } else {
       console.warn('전화번호 또는 면접 히스토리가 비어 있어 히스토리를 전송하지 않았습니다.');
     }
-  }, [number, setInterviewMessage]);
+  }, [setInterviewMessage]);
 
   const startMediaRecording = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      const options = { mimeType: 'video/webm;codecs=vp9,opus' };
-      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-        console.warn(`${options.mimeType} is not supported`);
-        options.mimeType = 'video/webm;codecs=vp8,opus';
-        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-          console.warn(`${options.mimeType} is not supported`);
-          options.mimeType = 'video/webm';
-          if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-            console.error('No supported mimeType found');
-            throw new Error('No supported mimeType found for this browser');
-          }
-        }
-      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480 },
+        audio: true
+      });
+
+      const options = { mimeType: 'video/webm; codecs=vp9,opus' };
       const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
 
@@ -309,7 +300,7 @@ export default function Home() {
       console.error('Error starting media recording:', error);
       setErrorMessage('녹화를 시작할 수 없습니다. 권한을 확인해주세요.');
     }
-  }, [setErrorMessage, setIsRecording]);
+  }, [setErrorMessage]);
 
   const stopMediaRecording = useCallback(() => {
     if (mediaRecorderRef.current) {
@@ -328,14 +319,8 @@ export default function Home() {
     try {
       const response = await axios.post('/api/upload', formData);
       const { fileUrl } = response.data;
-      const fullFileUrl = `${window.location.origin}${fileUrl}`;
-      console.log('업로드된 파일 URL:', fullFileUrl);
-      console.log('녹화된 영상 미리보기:');
-      const videoElement = document.createElement('video');
-      videoElement.src = URL.createObjectURL(blob);
-      videoElement.controls = true;
-      document.body.appendChild(videoElement);
-      return fullFileUrl;
+      console.log('업로드된 파일 URL:', fileUrl);
+      return fileUrl;
     } catch (error) {
       console.error('파일 업로드 중 오류 발생:', error);
       setErrorMessage('녹화 파일 업로드에 실패했습니다.');
@@ -352,20 +337,21 @@ export default function Home() {
       
       console.log('면접 히스토리 전송 시작');
       console.log('전송할 최종 히스토리:', finalHistory);
+      await sendInterviewHistoryToWebhook(number, finalHistory);
+      console.log('면접 히스토리 전송 완료');
 
-      stopMediaRecording();
-      const fileUrl = await uploadRecording();
+      //stopMediaRecording();
+      //const fileUrl = await uploadRecording();
 
-      if (fileUrl) {
-        await sendInterviewHistoryToWebhook(number, finalHistory, fileUrl);
-        console.log('면접 히스토리 전송 완료');
-      } else {
-        console.error('파일 URL을 가져오지 못했습니다.');
-      }
+      // if (fileUrl) {
+      //   await sendInterviewHistoryToWebhook(number, finalHistory);
+      //   console.log('면접 히스토리 전송 완료');
+      // } else {
+      //   console.error('파일 URL을 가져오지 못했습니다.');
+      // }
       
       stopWebcam();
       await speakText(endMessage);
-      setShowEndPopup(true);
     } catch (error) {
       console.error('면접 종료 중 오류 발생:', error);
       setErrorMessage('면접 종료 중 오류가 발생했습니다.');
@@ -434,7 +420,7 @@ export default function Home() {
               await speakText(message);
               console.log('AI 음성 출력 완료. 사용자 응답 대기 중...');
               startWebcam();
-              startMediaRecording(); // Start recording when the interview starts
+              //startMediaRecording(); // Start recording when the interview starts
               console.log('웹캠 시작');
               console.log('startRecording 호출 완료');
             } catch (error) {
@@ -473,7 +459,7 @@ export default function Home() {
     ['*', '0', '#']
   ]
 
-  // 컴포넌트가 언마운트될 때 타이머를 정리합니다.
+  // 컴포넌트가 언마운트될 때 타이를 정리합니다.
   useEffect(() => {
     return () => {
       if (silenceTimerRef.current) {
@@ -598,7 +584,7 @@ export default function Home() {
                 )}
                 {interviewState === 'interviewing' && !isAISpeaking && (
                   <div className="flex flex-row justify-center space-x-4 mb-5">
-                    {!isRecording && (
+                    {!isRecording && currentTranscript.length === 0 && (
                       <Button
                         onClick={startRecording}
                         className="w-48 h-16 text-4xl bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:scale-105"
@@ -606,7 +592,7 @@ export default function Home() {
                         답변 시작
                       </Button>
                     )}
-                    {isRecording && (
+                    {isRecording && currentTranscript.length !== 0 && (
                       <Button
                         onClick={stopRecording}
                         className="w-48 h-16 text-4xl bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:scale-105"

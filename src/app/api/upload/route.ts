@@ -1,6 +1,21 @@
 import { NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
+import { google } from 'googleapis';
+import { OAuth2Client } from 'google-auth-library';
+import stream from 'stream';
+
+const SCOPES = ['https://www.googleapis.com/auth/drive.file'];
+
+const oauth2Client = new OAuth2Client(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET,
+  process.env.GOOGLE_REDIRECT_URI
+);
+
+oauth2Client.setCredentials({
+  refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+});
+
+const drive = google.drive({ version: 'v3', auth: oauth2Client });
 
 export async function POST(req: Request) {
   try {
@@ -17,18 +32,25 @@ export async function POST(req: Request) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD 형식
-    const fileName = `${date}_${phoneNumber}.mp4`;
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-    const filePath = path.join(uploadDir, fileName);
+    const fileName = `${Date.now()}_${phoneNumber}.webm`;
 
-    // 디렉토리가 없으면 생성
-    await mkdir(uploadDir, { recursive: true });
+    const bufferStream = new stream.PassThrough();
+    bufferStream.end(buffer);
 
-    await writeFile(filePath, buffer);
+    const response = await drive.files.create({
+      requestBody: {
+        name: fileName,
+        mimeType: 'video/webm',
+        parents: ['폴더ID'], // 여기에 원하는 폴더의 ID를 넣습니다.
+      },
+      media: {
+        mimeType: 'video/webm',
+        body: bufferStream,
+      },
+    });
 
-    // 상대 URL 경로 생성
-    const fileUrl = `/uploads/${fileName}`;
+    const fileId = response.data.id;
+    const fileUrl = `https://drive.google.com/file/d/${fileId}/view`;
 
     return NextResponse.json({ fileUrl });
   } catch (error) {
