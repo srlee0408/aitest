@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import Script from 'next/script'
 import { Button } from '@/components/ui/button'
 import { checkPhoneNumberWithWebhook } from '@/lib/db'
 import { startInterview, continueInterview, endInterview } from '@/lib/gptAssistant'
@@ -287,16 +286,6 @@ export default function Home() {
       console.log('전송할 최종 히스토리:', finalHistory);
       await sendInterviewHistoryToWebhook(number, finalHistory);
       console.log('면접 히스토리 전송 완료');
-
-      //stopMediaRecording();
-      //const fileUrl = await uploadRecording();
-
-      // if (fileUrl) {
-      //   await sendInterviewHistoryToWebhook(number, finalHistory);
-      //   console.log('면접 히스토리 전송 완료');
-      // } else {
-      //   console.error('파일 URL을 가져오지 못했습니다.');
-      // }
       
       stopWebcam();
       await speakText(endMessage);
@@ -368,7 +357,6 @@ export default function Home() {
               await speakText(message);
               console.log('AI 음성 출력 완료. 사용자 응답 대기 중...');
               startWebcam();
-              //startMediaRecording(); // Start recording when the interview starts
               console.log('웹캠 시작');
               console.log('startRecording 호출 완료');
             } catch (error) {
