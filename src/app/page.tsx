@@ -69,7 +69,7 @@ declare global {
   }
 }
 
-// 파일 상단에 다음 타입 선언을 추가합니다
+// 파일 상단에 다음 타입 선언을 추가합니다.
 declare global {
   interface Window {
     webkitAudioContext: typeof AudioContext
