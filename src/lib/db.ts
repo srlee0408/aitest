@@ -91,47 +91,23 @@ export async function checkPhoneNumberWithWebhook(phoneNumber: string): Promise<
 }
 
 // 면접 히스토리를 웹훅으로 전송하는 함수
-export const sendInterviewHistory = async (
-  phoneNumber: string,
-  transcript: string
-): Promise<boolean> => {
-  const { INTERVIEW_HISTORY_WEBHOOK_URL } = await getEnvVariables();
-  console.log('sendInterviewHistory 함수 호출됨');
-  console.log('전송할 데이터:', { phoneNumber, transcript });
-  
-  if (!INTERVIEW_HISTORY_WEBHOOK_URL) {
-    console.error('INTERVIEW_HISTORY_WEBHOOK_URL이 설정되지 않았습니다.');
-    return false;
-  }
-
+export async function sendInterviewHistory(
+  phoneNumber: string, 
+  history: string, 
+  videoUrl?: string
+): Promise<boolean> {
   try {
-    console.log('Make 웹훅으로 POST 요청 전송 중...');
+    const { INTERVIEW_HISTORY_WEBHOOK_URL } = await getEnvVariables();
     const response = await axios.post(INTERVIEW_HISTORY_WEBHOOK_URL, {
       phoneNumber,
-      transcript
-    }, {
-      headers: {
-        'Content-Type': 'application/json'
-      }
+      history,
+      videoUrl, // 면접 영상 URL 추가
+      timestamp: new Date().toISOString()
     });
     
-    console.log('Make 응답:', response.data);
-    console.log('Make 응답 상태:', response.status);
-    
-    if (response.status >= 200 && response.status < 300) {
-      console.log('면접 히스토리가 성공적으로 전송되었습니다.');
-      return true;
-    } else {
-      console.error('Make 웹훅 오류: 예상치 못한 응답을 받았습니다.');
-      return false;
-    }
+    return response.status === 200;
   } catch (error) {
-    if (axios.isAxiosError(error)) {
-      console.error('Make 웹훅 요청 실패:', error.response?.data || error.message);
-      console.error('에러 상세 정보:', error.toJSON());
-    } else {
-      console.error('알 수 없는 오류 발생:', error);
-    }
+    console.error('면접 히스토리 전송 오류:', error);
     return false;
   }
-};
+}

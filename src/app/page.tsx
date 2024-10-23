@@ -7,6 +7,7 @@ import { startInterview, continueInterview, endInterview } from '@/lib/gptAssist
 import axios from 'axios'
 import { sendInterviewHistory } from '@/lib/db'
 import { useInterview } from '../contexts/InterviewContext';
+import { uploadToDropbox } from '@/lib/uploadToDropbox';
 
 // SpeechRecognition 타입 정의 추가
 interface SpeechRecognition extends EventTarget {
@@ -91,18 +92,18 @@ export default function Home() {
   const [audioContextInitialized, setAudioContextInitialized] = useState(false);
   const [currentTranscript, setCurrentTranscript] = useState<string>('');
   const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
-  const [isUserSpeaking, setIsUserSpeaking] = useState(false);
-  const [isListening, setIsListening] = useState<boolean>(false);
   const [isMobile, setIsMobile] = useState(false);
   const [showWebcam, setShowWebcam] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [isAISpeaking, setIsAISpeaking] = useState(false);
   const [showEndPopup, setShowEndPopup] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
 
   useEffect(() => {
     threadIdRef.current = threadId;
-    //console.log('threadId가 변경됨:', threadIdRef.current);
+    //console.log('threadId가 변경:', threadIdRef.current);
   }, [threadId]);
 
   useEffect(() => {
@@ -217,14 +218,48 @@ export default function Home() {
     return response.includes("면접이 종료되었습니다") || response.includes("면접을 마치겠습니다") || response.includes("수고하셨습니다.");
   }, []);
 
-  const stopWebcam = useCallback(() => {
+  const stopWebcam = useCallback(async () => {
+    console.log('stopWebcam 호출됨');
+    console.log('현재 녹화된 청크 수:', recordedChunks.length);
+
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.addEventListener('dataavailable', async (event) => {
+        if (event.data.size > 0) {
+          const newChunks = [...recordedChunks, event.data];
+          console.log('최종 녹화 데이터 크기:', event.data.size);
+          
+          const blob = new Blob(newChunks, { 
+            type: 'video/webm;codecs=vp8,opus' 
+          });
+          console.log('생성된 Blob 크기:', blob.size);
+
+          const fileName = `interview_${number}_${new Date().toISOString()}.webm`;
+          
+          try {
+            const url = await uploadToDropbox(blob, fileName);
+            console.log('면접 영상이 성공적으로 업로드되었습니다:', url);
+            
+            // 면접 영상 URL을 웹훅으로 전송
+            await sendInterviewHistoryToWebhook(number, interviewHistory, url);
+          } catch (error) {
+            console.error('면접 영상 업로드 실패:', error);
+          }
+        }
+      }, { once: true });
+
+      mediaRecorder.stop();
+      console.log('녹화 중지됨');
+    }
+
     if (videoRef.current && videoRef.current.srcObject) {
       const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
       tracks.forEach(track => track.stop());
     }
+    
     setShowWebcam(false);
+    setRecordedChunks([]);
     console.log('웹캠 중지됨');
-  }, []);
+  }, [mediaRecorder, recordedChunks, number, interviewHistory]);
 
   const speakText = useCallback(async (text: string) => {
     try {
@@ -251,12 +286,12 @@ export default function Home() {
     }
   }, [initializeAudioContext, setErrorMessage, setIsAISpeaking]);
 
-  const sendInterviewHistoryToWebhook = useCallback(async (number: string, finalHistory: string) => {
+  const sendInterviewHistoryToWebhook = useCallback(async (number: string, finalHistory: string, videoUrl?: string) => {
     if (number && finalHistory) {
       console.log('면접 히스토리 전송 시도 중...');
       console.log('전송할 히스토리:', finalHistory);
       try {
-        const success = await sendInterviewHistory(number, finalHistory);
+        const success = await sendInterviewHistory(number, finalHistory, videoUrl);
         
         console.log('sendInterviewHistory 결과:', success);
         if (success) {
@@ -282,18 +317,66 @@ export default function Home() {
       setInterviewMessage(endMessage);
       setInterviewState('ended');
       
-      console.log('면접 히스토리 전송 시작');
-      console.log('전송할 최종 히스토리:', finalHistory);
-      await sendInterviewHistoryToWebhook(number, finalHistory);
-      console.log('면접 히스토리 전송 완료');
-      
-      stopWebcam();
+      // 먼저 음성 출력
       await speakText(endMessage);
+      
+      // 웹캠/녹화 중지 및 영상 업로드
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        return new Promise((resolve) => {
+          mediaRecorder.addEventListener('dataavailable', async (event) => {
+            if (event.data.size > 0) {
+              const newChunks = [...recordedChunks, event.data];
+              const blob = new Blob(newChunks, { 
+                type: 'video/webm;codecs=vp8,opus' 
+              });
+              
+              try {
+                // Dropbox에 업로드하고 URL 받기
+                const videoUrl = await uploadToDropbox(blob, `interview_${number}_${new Date().toISOString()}.webm`);
+                console.log('면접 영상 업로드 URL:', videoUrl);
+                
+                // 히스토리와 영상 URL 함께 전송
+                console.log('면접 히스토리 전송 시작');
+                console.log('전송할 최종 히스토리:', finalHistory);
+                await sendInterviewHistoryToWebhook(number, finalHistory, videoUrl);
+                console.log('면접 히스토리 전송 완료');
+                
+                resolve(true);
+              } catch (error) {
+                console.error('면접 영상 업로드 실패:', error);
+                // 영상 업로드에 실패하더라도 히스토리는 전송
+                await sendInterviewHistoryToWebhook(number, finalHistory);
+                resolve(false);
+              }
+            }
+          }, { once: true });
+          
+          mediaRecorder.stop();
+        });
+      }
+      
+      // 웹캠 스트림 정리
+      if (videoRef.current && videoRef.current.srcObject) {
+        const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
+        tracks.forEach(track => track.stop());
+      }
+      setShowWebcam(false);
+      setRecordedChunks([]);
+      
     } catch (error) {
       console.error('면접 종료 중 오류 발생:', error);
       setErrorMessage('면접 종료 중 오류가 발생했습니다.');
     }
-  }, [sendInterviewHistoryToWebhook, stopWebcam, speakText, setErrorMessage, setInterviewMessage, setInterviewState, setShowEndPopup,number]);
+  }, [
+    mediaRecorder, 
+    recordedChunks, 
+    number, 
+    sendInterviewHistoryToWebhook, 
+    speakText, 
+    setErrorMessage, 
+    setInterviewMessage, 
+    setInterviewState
+  ]);
 
   const stopRecording = useCallback(async () => {
     if (recognitionRef.current) {
@@ -407,13 +490,33 @@ export default function Home() {
   const startWebcam = useCallback(async () => {
     try {
       console.log('웹캠 시작 시도...');
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: true,
+        audio: true 
+      });
       console.log('웹캠 스트림 획득 성공:', stream);
   
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         console.log('비디오 요소에 스트림 설정 완료');
   
+        // MediaRecorder 설정
+        const recorder = new MediaRecorder(stream, {
+          mimeType: 'video/webm;codecs=vp8,opus' // 명시적으로 코덱 지정
+        });
+
+        recorder.ondataavailable = (event) => {
+          console.log('녹화 데이터 가용:', event.data.size);
+          if (event.data && event.data.size > 0) {
+            setRecordedChunks(prev => [...prev, event.data]);
+          }
+        };
+
+        // 1초마다 데이터 저장
+        recorder.start(1000);
+        setMediaRecorder(recorder);
+        console.log('녹화 시작됨');
+
         videoRef.current.onloadedmetadata = () => {
           videoRef.current?.play().then(() => {
             console.log('웹캠 비디오 재생 시작');
@@ -423,8 +526,7 @@ export default function Home() {
           });
         };
       } else {
-        console.error('비디오 요소가 없습니다. 5초 후 재시도합니다.');
-        setTimeout(startWebcam, 5000);  // 5초 후 재시도
+        console.error('비디오 요소가 없습니다.');
       }
     } catch (error) {
       console.error('웹캠 시작 오류:', error);
@@ -549,7 +651,7 @@ export default function Home() {
           </div>
         )}
         
-        {errorMessage && errorMessage !== '마이크 사용 권한이 필요합니다. 브라우저 설정에서 권한을 허용해주요.' && (
+        {errorMessage && errorMessage !== '마이크 사용 권한이 필요합니다. 브라우저 설정에 권한을 허용해주요.' && (
           <p className="text-red-500 text-center mt-4">{errorMessage}</p>
         )}
       </div>
