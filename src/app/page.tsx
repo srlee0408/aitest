@@ -147,7 +147,7 @@ export default function Home() {
       }
       return stream;
     } catch (error) {
-      //console.error('카메라 권한 요청 실패:', error);
+      //console.error('카메라 권한 요�� 실패:', error);
       setErrorMessage('카메라 사용 권한이 필요합니다. 브라우저 설정에서 권한을 허용해주세요.');
       setHasCameraPermission(false);
       return null;
@@ -332,20 +332,28 @@ export default function Home() {
               });
               
               try {
-                // Dropbox에 업로드하고 URL 받기
-                const videoUrl = await uploadToDropbox(blob, `interview_${number}_${new Date().toISOString()}.webm`);
-                console.log('면접 영상 업로드 URL:', videoUrl);
+                const timestamp = new Date().toISOString();
                 
-                // 히스토리와 영상 URL 함께 전송
-                console.log('면접 히스토리 전송 시작');
-                console.log('전송할 최종 히스토리:', finalHistory);
+                // 면접 기록을 텍스트 파일로 변환하여 업로드
+                const textBlob = new Blob([finalHistory], { type: 'text/plain' });
+                const textFileName = `interview_text_${number}_${timestamp}.txt`;
+                const videoFileName = `interview_video_${number}_${timestamp}.webm`;
+
+                // 영상과 텍스트 파일 모두 업로드
+                const [videoUrl, textUrl] = await Promise.all([
+                  uploadToDropbox(blob, videoFileName),
+                  uploadToDropbox(textBlob, textFileName)
+                ]);
+
+                console.log('면접 영상 업로드 URL:', videoUrl);
+                console.log('면접 기록 업로드 URL:', textUrl);
+                
+                // 웹훅으로는 영상 URL만 전송
                 await sendInterviewHistoryToWebhook(number, finalHistory, videoUrl);
-                console.log('면접 히스토리 전송 완료');
                 
                 resolve(true);
               } catch (error) {
-                console.error('면접 영상 업로드 실패:', error);
-                // 영상 업로드에 실패하더라도 히스토리는 전송
+                console.error('면접 자료 업로드 실패:', error);
                 await sendInterviewHistoryToWebhook(number, finalHistory);
                 resolve(false);
               }
