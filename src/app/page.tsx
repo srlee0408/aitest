@@ -116,7 +116,7 @@ export default function Home() {
   }, []);
 
   const initializeAudioContext = useCallback(() => {
-    if (!audioContextInitialized) {
+    if (typeof window !== 'undefined' && !audioContextInitialized) {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       new AudioContext();
       setAudioContextInitialized(true);
@@ -168,9 +168,10 @@ export default function Home() {
   }, [requestMicrophonePermission, requestCameraPermission]);
 
   const initializeSpeechRecognition = useCallback(() => {
+    if (typeof window === 'undefined') return;
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      //console.error('SpeechRecognition is not supported in this browser');
       setErrorMessage('이 브라우저는 음성 인식을 지원하지 않습니다.');
       return;
     }
