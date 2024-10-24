@@ -1,4 +1,4 @@
-import dropbox from './dropboxConfig';
+import { getDropboxClient } from './dropboxConfig';
 
 export const uploadToDropbox = async (file: Blob, fileName: string): Promise<string> => {
   if (!file || file.size === 0) {
@@ -6,10 +6,12 @@ export const uploadToDropbox = async (file: Blob, fileName: string): Promise<str
   }
 
   try {
+    const dropbox = await getDropboxClient();
+    
     // 파일 업로드
     const response = await dropbox.filesUpload({
       path: `/${fileName}`,
-      contents: file, // Blob 직접 전달
+      contents: file,
       mode: { '.tag': 'add' },
       autorename: true
     });
