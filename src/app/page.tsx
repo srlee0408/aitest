@@ -103,7 +103,6 @@ export default function Home() {
 
   useEffect(() => {
     threadIdRef.current = threadId;
-    //console.log('threadId가 변경:', threadIdRef.current);
   }, [threadId]);
 
   useEffect(() => {
@@ -112,7 +111,6 @@ export default function Home() {
       return /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
     };
     setIsMobile(checkMobile());
-    //console.log('isMobile', isMobile);
   }, []);
 
   const initializeAudioContext = useCallback(() => {
