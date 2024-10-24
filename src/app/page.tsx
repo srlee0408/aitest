@@ -100,12 +100,14 @@ export default function Home() {
   const [showEndPopup, setShowEndPopup] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
   useEffect(() => {
     threadIdRef.current = threadId;
   }, [threadId]);
 
   useEffect(() => {
+    // 모바일 기기 감지
     const checkMobile = () => {
       const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
       return /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
@@ -200,7 +202,7 @@ export default function Home() {
     console.log('Speech recognition initialized');
   }, [setErrorMessage]);
 
-  const startRecording = useCallback(() => {
+  const startRecording = useCallback(async () => {
     if (!recognitionRef.current) {
       initializeSpeechRecognition();
     }
@@ -208,10 +210,35 @@ export default function Home() {
       recognitionRef.current.start();
       setIsRecording(true);
       console.log('음성 인식 시작');
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            // 여기서 녹음된 데이터 처리
+            console.log('녹음된 데이터:', event.data);
+          }
+        };
+
+        if (isMobile) {
+          mediaRecorder.start(1000); // 모바일에서는 1초마다 데이터 전송
+          console.log('모바일 환경에서 MediaRecorder 시작 (1초 간격)');
+          console.log('모바일 환경에서 음성 인식 시작',isMobile);
+        } else {
+          mediaRecorder.start(); // 데스크톱에서는 기본 설정 사용
+          console.log('데스크톱 환경에서 MediaRecorder 시작');
+        }
+      } catch (error) {
+        console.error('MediaRecorder 시작 오류:', error);
+        setErrorMessage('음성 녹음을 시작할 수 없습니다.');
+      }
     } else {
       console.error('음성 인식을 시작할 수 없습니다.');
     }
-  }, [isAISpeaking, initializeSpeechRecognition]);
+  }, [isAISpeaking, initializeSpeechRecognition, isMobile]);
 
   const checkInterviewEnd = useCallback((response: string): boolean => {
     return response.includes("면접이 종료되었습니다") || response.includes("면접을 마치겠습니다") || response.includes("수고하셨습니다.");
@@ -302,7 +329,7 @@ export default function Home() {
         }
       } catch (error) {
         console.error('면접 히스토리 전송 중 오류 발생:', error);
-        setInterviewMessage(prevMessage => prevMessage + "\n면접 기록 저장 중 오류가 발생했습니다. 관리자에게 문의해주세요.");
+        setInterviewMessage(prevMessage => prevMessage + "\n면접 기록 저장 중 오류가 발생했습니다. 관리자에게 문의해주��요.");
       }
     } else {
       console.warn('전화번호 또는 면접 히스토리가 비어 있어 히스토리를 전송하지 않았습니다.');
