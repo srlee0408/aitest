@@ -5,6 +5,7 @@ interface EnvVariables {
   ELEVENLABS_VOICE_ID: string;
   CHECK_PHONE_WEBHOOK_URL: string;
   INTERVIEW_HISTORY_WEBHOOK_URL: string;
+  DROPBOX_ACCESS_TOKEN: string;
 }
 
 export function getEnvVariables(): EnvVariables {
@@ -15,5 +16,6 @@ export function getEnvVariables(): EnvVariables {
     ELEVENLABS_VOICE_ID: process.env.NEXT_PUBLIC_ELEVENLABS_VOICE_ID || '',
     CHECK_PHONE_WEBHOOK_URL: process.env.NEXT_PUBLIC_CHECK_PHONE_WEBHOOK_URL || '',
     INTERVIEW_HISTORY_WEBHOOK_URL: process.env.NEXT_PUBLIC_INTERVIEW_HISTORY_WEBHOOK_URL || '',
+    DROPBOX_ACCESS_TOKEN: process.env.NEXT_PUBLIC_DROPBOX_ACCESS_TOKEN || '',
   };
 }

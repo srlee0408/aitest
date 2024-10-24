@@ -147,7 +147,7 @@ export default function Home() {
       }
       return stream;
     } catch (error) {
-      //console.error('카메라 권한 요�� 실패:', error);
+      //console.error('카메라 권한 요 실패:', error);
       setErrorMessage('카메라 사용 권한이 필요합니다. 브라우저 설정에서 권한을 허용해주세요.');
       setHasCameraPermission(false);
       return null;
@@ -565,7 +565,7 @@ export default function Home() {
         {interviewState === 'idle' && (
           <>
             <p className="text-xl text-center mb-2 text-gray-600">전화번호를 입력해주세요.</p>
-            <p className="text-xl text-center mb-4 text-gray-600">확인 버튼을 눌러주세요.</p>
+            <p className="text-xl text-center mb-4 text-gray-600">입력 후 확인 버튼을 눌러주세요.</p>
             <div className="bg-gray-100 rounded-2xl shadow-inner p-4 mb-6">
               <input
                 type="text"
@@ -629,26 +629,24 @@ export default function Home() {
                     </div>
                   </div>
                 )}
-                {interviewState === 'interviewing' && !isAISpeaking && (
-                  <div className="flex flex-row justify-center space-x-4 mb-5">
-                    {!isRecording && currentTranscript.length === 0 && (
-                      <Button
-                        onClick={startRecording}
-                        className="w-48 h-16 text-4xl bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:scale-105"
-                      >
-                        답변 시작
-                      </Button>
-                    )}
-                    {isRecording && currentTranscript.length !== 0 && (
-                      <Button
-                        onClick={stopRecording}
-                        className="w-48 h-16 text-4xl bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:scale-105"
-                      >
-                        답변 종료
-                      </Button>
-                    )}
-                  </div>
-                )}
+                <div className="flex flex-row justify-center space-x-4 mb-5">
+                  {!isRecording && currentTranscript.length === 0 && (
+                    <Button
+                      onClick={startRecording}
+                      className="w-48 h-16 text-4xl bg-green-500 hover:bg-green-600 text-white font-bold rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:scale-105"
+                    >
+                      답변 시작
+                    </Button>
+                  )}
+                  {isRecording && currentTranscript.length !== 0 && (
+                    <Button
+                      onClick={stopRecording}
+                      className="w-48 h-16 text-4xl bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-lg transition duration-300 ease-in-out transform hover:scale-105"
+                    >
+                      답변 종료
+                    </Button>
+                  )}
+                </div>
               </>
             )}
           </>
@@ -660,7 +658,7 @@ export default function Home() {
           </div>
         )}
         
-        {errorMessage && errorMessage !== '마이크 사용 권한이 필요합니다. 브라우저 설정에 권한을 허용해주요.' && (
+        {errorMessage && errorMessage !== '마이크 사용 권한이 필요합니다. 브라우저 설정에서 권한을 허용해주요.' && (
           <p className="text-red-500 text-center mt-4">{errorMessage}</p>
         )}
       </div>
