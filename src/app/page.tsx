@@ -22,6 +22,7 @@ interface SpeechRecognition extends EventTarget {
   onspeechstart: () => void;
   onstart: () => void;
   onend: () => void;
+  maxAlternatives: number;
   // 필요에 따라 더 많은 속성과 메서드를 추가할 수 있습니다.
 }
 
@@ -172,13 +173,25 @@ export default function Home() {
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      setErrorMessage('이 브라우저는 음성 인식을 지원하지 않습니다.');
+      if (isMobile) {
+        setErrorMessage('모바일에서는 Chrome 브라우저 사용을 권장합니다.');
+      } else {
+        setErrorMessage('이 브라우저는 음성 인식을 지원하지 않습니다.');
+      }
       return;
     }
 
     const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
+    
+    // 모바일 환경에 맞는 설정
+    if (isMobile) {
+      recognition.continuous = false; // 모바일에서는 연속 인식 비활성화
+      recognition.interimResults = false; // 중간 결과 비활성화
+      recognition.maxAlternatives = 1; // 최대 대체 결과 수 제한
+    } else {
+      recognition.continuous = true;
+      recognition.interimResults = true;
+    }
     recognition.lang = 'ko-KR';
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
@@ -188,30 +201,47 @@ export default function Home() {
       setCurrentTranscript(transcript);
       console.log('면접자 음성:', transcript);
     };
+
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      //console.error('Speech recognition error', event.error);
-      setErrorMessage(`음성 인식 오류: ${event.error}`);
+      console.error('음성 인식 오류:', event.error, event.message);
+      if (event.error === 'not-allowed') {
+        setErrorMessage('마이크 사용 권한이 필요합니다. 브라우저 설정에서 권한을 허용해주세요.');
+      } else if (event.error === 'network') {
+        setErrorMessage('네트워크 연결을 확인해주세요.');
+      } else {
+        setErrorMessage(`음성 인식 오류: ${event.error}`);
+      }
     };
 
     recognition.onend = () => {
-      console.log('Speech recognition ended');
-      setIsRecording(false);
+      console.log('음성 인식 종료');
+      if (isRecording && isMobile) {
+        // 모바일에서는 자동으로 재시작
+        try {
+          recognition.start();
+        } catch (e) {
+          console.error('Recognition restart failed:', e);
+          setIsRecording(false);
+        }
+      } else {
+        setIsRecording(false);
+      }
     };
 
     recognitionRef.current = recognition;
-    console.log('Speech recognition initialized');
-  }, [setErrorMessage]);
+  }, [setErrorMessage, isRecording, isMobile]);
 
-  const startRecording = useCallback(async () => {
+  // startRecording을 useCallback 밖으로 이동
+  async function startRecording() {
     if (!recognitionRef.current) {
       initializeSpeechRecognition();
     }
     if (recognitionRef.current && !isAISpeaking) {
-      recognitionRef.current.start();
-      setIsRecording(true);
-      console.log('음성 인식 시작');
-
       try {
+        recognitionRef.current.start();
+        setIsRecording(true);
+        console.log('음성 인식 시작');
+
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const mediaRecorder = new MediaRecorder(stream);
         mediaRecorderRef.current = mediaRecorder;
@@ -226,19 +256,25 @@ export default function Home() {
         if (isMobile) {
           mediaRecorder.start(1000); // 모바일에서는 1초마다 데이터 전송
           console.log('모바일 환경에서 MediaRecorder 시작 (1초 간격)');
-          console.log('모바일 환경에서 음성 인식 시작',isMobile);
         } else {
           mediaRecorder.start(); // 데스크톱에서는 기본 설정 사용
           console.log('데스크톱 환경에서 MediaRecorder 시작');
         }
       } catch (error) {
-        console.error('MediaRecorder 시작 오류:', error);
-        setErrorMessage('음성 녹음을 시작할 수 없습니다.');
+        console.error('음성 인식 시작 오류:', error);
+        setErrorMessage('음성 인식을 시작할 수 없습니다.');
       }
     } else {
       console.error('음성 인식을 시작할 수 없습니다.');
     }
-  }, [isAISpeaking, initializeSpeechRecognition, isMobile]);
+  }
+
+  // 필요한 경우 useEffect 내에서 startRecording 호출
+  useEffect(() => {
+    if (interviewState === 'interviewing' && !isRecording && !isAISpeaking) {
+      startRecording();
+    }
+  }, [interviewState, isRecording, isAISpeaking]);
 
   const checkInterviewEnd = useCallback((response: string): boolean => {
     return response.includes("면접이 종료되었습니다") || response.includes("면접을 마치겠습니다") || response.includes("수고하셨습니다.");
@@ -329,7 +365,7 @@ export default function Home() {
         }
       } catch (error) {
         console.error('면접 히스토리 전송 중 오류 발생:', error);
-        setInterviewMessage(prevMessage => prevMessage + "\n면접 기록 저장 중 오류가 발생했습니다. 관리자에게 문의해주��요.");
+        setInterviewMessage(prevMessage => prevMessage + "\n면접 기록 저장 중 오류가 발생했습니다. 관리자에게 문의해주요.");
       }
     } else {
       console.warn('전화번호 또는 면접 히스토리가 비어 있어 히스토리를 전송하지 않았습니다.');
