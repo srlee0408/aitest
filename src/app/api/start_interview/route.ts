@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     
     console.log('Thread created:', thread.id);
 
-    const message = "테스트를 진행해보겠습니다. 질문 이후 하단의 '답변 시작'을 누른 후 답변 해주시면 됩니다. 답변이 완료되면 '답변 종료'를 누르시면 됩니다. 이제 '답변 시작'을 누른 후 '네' 라고 답변해주세요.";
+    const message = "테스트를 진행해보겠습니다. 질문 이후 하단의 '답변 시작'을 누른 후 답변 해주시면 됩니다. 답변이 완료되면 '답변 종료'를 누르시면 됩니다. 이제 '답변 시작'을 누른 후 '네 준비되었습니다' 라고 답변해주시고 '답변 종료'를 눌러주세요.";
     //const message = "'네' 라고 답변해주세요.";
 
     return NextResponse.json({ 
